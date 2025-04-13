@@ -7,6 +7,7 @@ from scapy.all import sniff, IP, TCP, UDP, ARP, Ether, srp
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
+from monitor import start_monitoring
 
 
 # ============================== STEP 1: Physical Connectivity ==============================
@@ -273,10 +274,15 @@ def check_unauthorized_devices():
         print("✅ No unauthorized devices found.")
 
 
+# ============================== STEP 8: TRAFFIC MONITORING ==============================
+
+def run_traffic_monitor(interface):
+    print("\n📊 Step 8: Traffic Monitoring...")
+    start_monitoring(interface)
 
 
 
-# ============================== STEP 8: Anomaly Detection ==============================
+# ============================== STEP 9: Anomaly Detection ==============================
 
 def analyze_packet(pkt):
     if IP in pkt:
@@ -321,9 +327,15 @@ def run_diagnostics():
     if not ping_external(): return
     speed_test()
     check_unauthorized_devices()
+    
+    # ✅ Run monitoring here with valid interface
+    run_traffic_monitor(interface)
+
     if input("\n🔬 Run packet sniffing & anomaly detection? (y/n): ").lower() == "y":
         sniff_and_detect(interface)
+    
     print("\n✅ Network troubleshooting complete.")
+
 
 if __name__ == "__main__":
     run_diagnostics()
