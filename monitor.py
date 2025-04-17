@@ -1,81 +1,91 @@
-from scapy.all import sniff, IP, TCP, UDP, Raw
-from socket import getservbyport
-from urllib.parse import urlparse
-import re
+from scapy.all import sniff, IP, TCP, UDP
+import ipinfo
+import psutil
+import threading
 import time
-from datetime import datetime
+import os
+from collections import defaultdict
+from socket import getfqdn
 
-log_entries = []
+# IPInfo Access Token
+access_token = 'd075f74a07df28'
+ipinfo_handler = ipinfo.getHandler(access_token)
 
-def extract_hostname_from_tls(packet):
+# Cache for process names by port
+def get_local_port_process_map():
+    port_map = {}
+    for conn in psutil.net_connections(kind='inet'):
+        if conn.laddr and conn.pid:
+            try:
+                proc_name = psutil.Process(conn.pid).name()
+                port_map[conn.laddr.port] = proc_name
+            except Exception:
+                continue
+    return port_map
+
+# Cache organization info
+ip_cache = {}
+
+def get_org_and_country(ip):
+    if ip in ip_cache:
+        return ip_cache[ip]
     try:
-        if packet.haslayer(Raw):
-            raw_data = packet[Raw].load
-            if raw_data[0] == 0x16 and raw_data[5] == 0x01:
-                sni_match = re.search(
-                    b'\x00\x00[\x00-\xff]{1,2}[\x00-\xff]{1,2}\x00\x00[\x00-\xff]{1,2}([\x00-\xff]{1,2})([\x00-\xff]+)',
-                    raw_data
-                )
-                if sni_match:
-                    potential = sni_match.group(2)
-                    hostname = re.findall(b'([\w.-]+\.[a-zA-Z]{2,})', potential)
-                    if hostname:
-                        return hostname[0].decode(errors='ignore')
-    except:
-        pass
-    return None
+        details = ipinfo_handler.getDetails(ip)
+        org = details.org or "Unknown"
+        country = details.country_name or "Unknown"
+        ip_cache[ip] = (org, country)
+        return org, country
+    except Exception:
+        ip_cache[ip] = ("Unknown", "Unknown")
+        return "Unknown", "Unknown"
 
-def get_protocol(port):
-    try:
-        return getservbyport(port)
-    except:
-        return f"Port:{port}"
+# Traffic Tracker
+traffic_stats = defaultdict(lambda: {"packets": 0, "bytes": 0, "org": "", "country": "", "app": "Unknown"})
 
-def simplify_app_name(hostname):
-    if not hostname or hostname == "N/A":
-        return "Unknown"
-    root = ".".join(hostname.split(".")[-2:])
-    return root.split('.')[0].capitalize()
+def process_packet(packet):
+    if IP in packet:
+        ip_layer = packet[IP]
+        proto = "TCP" if TCP in packet else "UDP" if UDP in packet else "Other"
+        dst = ip_layer.dst
+        pkt_len = len(packet)
 
-def process_packet(pkt):
-    if not pkt.haslayer(IP):
-        return
+        if TCP in packet:
+            dport = packet[TCP].dport
+        elif UDP in packet:
+            dport = packet[UDP].dport
+        else:
+            dport = None
 
-    ip_layer = pkt[IP]
-    proto = "TCP" if pkt.haslayer(TCP) else "UDP" if pkt.haslayer(UDP) else "Other"
-    sport = pkt.sport
-    dport = pkt.dport
-    src = ip_layer.src
-    dst = ip_layer.dst
-    size = len(pkt)
+        # Get org and country
+        org, country = get_org_and_country(dst)
 
-    hostname = extract_hostname_from_tls(pkt) or "N/A"
-    proto_name = get_protocol(dport)
-    app_name = simplify_app_name(hostname)
+        # Get app name from port (local apps)
+        process_map = get_local_port_process_map()
+        app = process_map.get(dport, "Unknown")
 
-    line = f"[{proto:<4}] {proto_name:<8} | {app_name:<12} | {src}:{sport} → {dst}:{dport} | Host: {hostname:<30} | Size: {size} B"
-    print(line)
-    log_entries.append(line)
+        key = (proto, dst, org, country, app)
+        traffic_stats[key]["packets"] += 1
+        traffic_stats[key]["bytes"] += pkt_len
+        traffic_stats[key]["org"] = org
+        traffic_stats[key]["country"] = country
+        traffic_stats[key]["app"] = app
 
-def write_log_to_file():
-    filename = "traffic_log.txt"
-    try:
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(f"📄 Traffic Summary Log\n")
-            f.write(f"🕒 Captured on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            for entry in log_entries:
-                f.write(entry + "\n")
-        print(f"\n✅ Log saved to: {filename}")
-    except Exception as e:
-        print(f"\n❌ Failed to write log file: {e}")
+def display_stats():
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("📊 Live Network Traffic Monitoring (GlassWire-style)\n")
+        print(f"{'Proto':<6} {'IP Address':<40} {'Packets':>8} {'Data':>10} {'Organization':<30} {'Country':<15} {'App'}")
+        print("=" * 120)
+        for (proto, dst, org, country, app), stats in sorted(traffic_stats.items(), key=lambda x: -x[1]['bytes']):
+            print(f"[{proto}] {dst:<40} {stats['packets']:>8} {stats['bytes']/1024:9.1f} KB  "
+                  f"{org[:30]:<30} {country:<15} {app}")
+        time.sleep(2)
 
-def monitor():
-    print("\n🌐 Real-Time Traffic Monitor ▶ Press Ctrl+C to stop\n")
-    try:
-        sniff(prn=process_packet, store=0)
-    except KeyboardInterrupt:
-        print("\n🛑 Monitoring stopped.")
-        write_log_to_file()
+print("🔍 Monitoring started with live GlassWire-style stats (Press Ctrl+C to stop)...")
 
-if __name__ == "__main__":
-    monitor()
+# Start display in a separate thread
+display_thread = threading.Thread(target=display_stats, daemon=True)
+display_thread.start()
+
+# Start sniffing packets
+sniff(prn=process_packet, store=0)
