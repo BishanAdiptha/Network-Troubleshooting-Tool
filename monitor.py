@@ -1,91 +1,123 @@
-from scapy.all import sniff, IP, TCP, UDP
-import ipinfo
-import psutil
+# monitor.py
+
+import pyshark
+from scapy.all import sniff, DNS, DNSQR
 import threading
 import time
-import os
 from collections import defaultdict
-from socket import getfqdn
+from network_activity import start_network_activity_monitor
+from network_activity import get_recent_connections
 
-# IPInfo Access Token
-access_token = 'd075f74a07df28'
-ipinfo_handler = ipinfo.getHandler(access_token)
+domain_stats   = defaultdict(lambda: {"bytes": 0})
+lock           = threading.Lock()
+header_printed = False
 
-# Cache for process names by port
-def get_local_port_process_map():
-    port_map = {}
-    for conn in psutil.net_connections(kind='inet'):
-        if conn.laddr and conn.pid:
-            try:
-                proc_name = psutil.Process(conn.pid).name()
-                port_map[conn.laddr.port] = proc_name
-            except Exception:
-                continue
-    return port_map
+def simplify_domain(d: str) -> str:
+    parts = d.strip('.').split('.')
+    return ".".join(parts[-2:]) if len(parts) >= 2 else d
 
-# Cache organization info
-ip_cache = {}
-
-def get_org_and_country(ip):
-    if ip in ip_cache:
-        return ip_cache[ip]
-    try:
-        details = ipinfo_handler.getDetails(ip)
-        org = details.org or "Unknown"
-        country = details.country_name or "Unknown"
-        ip_cache[ip] = (org, country)
-        return org, country
-    except Exception:
-        ip_cache[ip] = ("Unknown", "Unknown")
-        return "Unknown", "Unknown"
-
-# Traffic Tracker
-traffic_stats = defaultdict(lambda: {"packets": 0, "bytes": 0, "org": "", "country": "", "app": "Unknown"})
-
-def process_packet(packet):
-    if IP in packet:
-        ip_layer = packet[IP]
-        proto = "TCP" if TCP in packet else "UDP" if UDP in packet else "Other"
-        dst = ip_layer.dst
-        pkt_len = len(packet)
-
-        if TCP in packet:
-            dport = packet[TCP].dport
-        elif UDP in packet:
-            dport = packet[UDP].dport
-        else:
-            dport = None
-
-        # Get org and country
-        org, country = get_org_and_country(dst)
-
-        # Get app name from port (local apps)
-        process_map = get_local_port_process_map()
-        app = process_map.get(dport, "Unknown")
-
-        key = (proto, dst, org, country, app)
-        traffic_stats[key]["packets"] += 1
-        traffic_stats[key]["bytes"] += pkt_len
-        traffic_stats[key]["org"] = org
-        traffic_stats[key]["country"] = country
-        traffic_stats[key]["app"] = app
-
-def display_stats():
+def print_stats():
+    """Print header once, then update only the domain rows every 2 seconds."""
+    global header_printed
     while True:
-        os.system('cls' if os.name == 'nt' else 'clear')
-        print("📊 Live Network Traffic Monitoring (GlassWire-style)\n")
-        print(f"{'Proto':<6} {'IP Address':<40} {'Packets':>8} {'Data':>10} {'Organization':<30} {'Country':<15} {'App'}")
-        print("=" * 120)
-        for (proto, dst, org, country, app), stats in sorted(traffic_stats.items(), key=lambda x: -x[1]['bytes']):
-            print(f"[{proto}] {dst:<40} {stats['packets']:>8} {stats['bytes']/1024:9.1f} KB  "
-                  f"{org[:30]:<30} {country:<15} {app}")
         time.sleep(2)
+        with lock:
+            items = sorted(domain_stats.items(), key=lambda x: -x[1]["bytes"])
+            if not header_printed:
+              print("\n📊 Passive App & Domain Monitoring (Live View)\n")
+              print(f"{'Host':<40} {'Data':>8}   |  First-time Connections")
+              print("=" * 95)
+              print("\n" * 5)  # Add enough spacing (5–8 lines is usually enough)
+              header_printed = True
 
-print("🔍 Monitoring started with live GlassWire-style stats (Press Ctrl+C to stop)...")
 
-# Start display in a separate thread
-display_thread = threading.Thread(target=display_stats, daemon=True)
-display_thread.start()
 
-# Start sniffing packets
-sniff(prn=process_packet, store=0)
+            prev = getattr(print_stats, "prev_count", 0)
+            if prev:
+                # Move cursor up to overwrite previous rows
+                print(f"\033[{prev}A", end="")
+
+            count = 0
+            conns = get_recent_connections()
+            for i, (host, stat) in enumerate(items):
+                kb = stat["bytes"] / 1024
+                conn = conns[i] if i < len(conns) else ""
+                print(f"{host:<40} {kb:>6.1f} KB  |  {conn}")
+                count += 1
+
+
+            print_stats.prev_count = count
+
+def dns_sniffer(pkt):
+    """Accumulate bytes per simplified domain from DNS queries."""
+    if pkt.haslayer(DNS) and pkt.getlayer(DNS).qr == 0:
+        try:
+            dom  = pkt[DNSQR].qname.decode().rstrip('.')
+            base = simplify_domain(dom)
+            size = len(pkt)
+        except:
+            return
+        with lock:
+            domain_stats[base]["bytes"] += size
+
+def start_dns_sniff():
+    sniff(filter="udp port 53", prn=dns_sniffer, store=0)
+
+def tls_sni_monitor(interface):
+    """Accumulate bytes per domain from TLS SNI (handshake)."""
+    try:
+        cap = pyshark.LiveCapture(
+            interface=interface,
+            display_filter='tls.handshake.extensions_server_name'
+        )
+        for pkt in cap.sniff_continuously():
+            try:
+                sni  = pkt.tls.handshake_extensions_server_name
+                base = simplify_domain(sni)
+                size = int(pkt.length)
+            except:
+                continue
+            with lock:
+                domain_stats[base]["bytes"] += size
+
+    except Exception as e:
+        print(f"[TLS SNI Error] {e}")
+
+def http_host_monitor(interface):
+    """Accumulate bytes per domain from HTTP Host header."""
+    try:
+        cap = pyshark.LiveCapture(
+            interface=interface,
+            display_filter='http.request'
+        )
+        for pkt in cap.sniff_continuously():
+            try:
+                host = pkt.http.host
+                base = simplify_domain(host)
+                size = int(pkt.length)
+            except:
+                continue
+            with lock:
+                domain_stats[base]["bytes"] += size
+
+    except Exception as e:
+        print(f"[HTTP Host Error] {e}")
+
+
+
+
+def start_monitoring(interface):
+    """Launch live stats printer plus DNS, TLS SNI, HTTP monitors and also new connection log."""
+    print("\n📊 Loading the Live Monitoring\n")
+    threading.Thread(target=start_network_activity_monitor, daemon=True).start()
+    threading.Thread(target=print_stats, daemon=True).start()
+    threading.Thread(target=start_dns_sniff, daemon=True).start()
+    threading.Thread(target=tls_sni_monitor, args=(interface,), daemon=True).start()
+    threading.Thread(target=http_host_monitor, args=(interface,), daemon=True).start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n🛑 Monitoring stopped by user.")
+

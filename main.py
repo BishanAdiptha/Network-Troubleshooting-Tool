@@ -1,13 +1,18 @@
+#main.py
+
 import os
 import socket
 import time
 import platform
 import subprocess
 from scapy.all import sniff, IP, TCP, UDP, ARP, Ether, srp
-import numpy as np
-from sklearn.ensemble import IsolationForest
-
 from monitor import start_monitoring
+from network_activity import start_network_activity_monitor
+import subprocess
+
+
+
+
 
 
 # ============================== STEP 1: Physical Connectivity ==============================
@@ -50,6 +55,9 @@ def check_cable_or_wifi(target_interface):
     else:
         print("⚠ Cannot verify connectivity on non-Windows systems.")
         return True
+
+
+
 
 # ============================== STEP 2: IP Address & DHCP ==============================
 
@@ -120,6 +128,11 @@ def check_ip_and_dhcp(selected_interface):
               "Press Enter to continue.")
     return ip_valid and (dhcp_enabled or gateway)
 
+
+
+
+
+
 # ============================== STEP 3: Ping Router ==============================
 
 def ping_router(gateway="192.168.1.1"):
@@ -138,6 +151,10 @@ def ping_router(gateway="192.168.1.1"):
               " - Verify gateway IP is correct\n"
               "Press Enter to continue.")
         return False
+
+
+
+
 
 # ============================== STEP 4 & 5: DNS + Internet ==============================
 
@@ -166,27 +183,35 @@ def ping_external():
               "Press Enter to continue.")
         return False
 
-# ============================== STEP 6: Speed Test ==============================
 
-def speed_test():
-    print("\n🚀 Step 6: Speed Test...")
-    try:
-        import speedtest
-        st = speedtest.Speedtest()
-        st.get_best_server()
-        down = st.download() / 1_000_000
-        up = st.upload() / 1_000_000
-        print(f"\n⬇ Download Speed: {down:.2f} Mbps")
-        print(f"⬆ Upload Speed: {up:.2f} Mbps")
-        if down < 2: input("⚠️ Very slow download. Try limiting devices.\nPress Enter to continue.")
-        elif down < 5: input("⚠️ Slow download speed.\nPress Enter to continue.")
-        else: print("✅ Download speed is good.")
-        if up < 0.5: input("⚠️ Very slow upload.\nPress Enter to continue.")
-        elif up < 2: input("⚠️ Slow upload speed.\nPress Enter to continue.")
-        else: print("✅ Upload speed is good.")
-    except Exception as e:
-        print(f"❌ Speed test failed: {e}")
-        input("Try again later. Press Enter to continue.")
+
+
+
+# ============================== STEP 6: Speed Test =============================
+
+# def speed_test():
+#     print("\n🚀 Step 6: Speed Test...")
+#     try:
+#         import speedtest
+
+#         st = speedtest.Speedtest()
+#         st.get_best_server()
+#         down = st.download() / 1_000_000
+#         up = st.upload() / 1_000_000
+#         print(f"\n⬇ Download Speed: {down:.2f} Mbps")
+#         print(f"⬆ Upload Speed: {up:.2f} Mbps")
+#         if down < 2: input("⚠️ Very slow download. Try limiting devices.\nPress Enter to continue.")
+#         elif down < 5: input("⚠️ Slow download speed.\nPress Enter to continue.")
+#         else: print("✅ Download speed is good.")
+#         if up < 0.5: input("⚠️ Very slow upload.\nPress Enter to continue.")
+#         elif up < 2: input("⚠️ Slow upload speed.\nPress Enter to continue.")
+#         else: print("✅ Upload speed is good.")
+#     except Exception as e:
+#         print(f"❌ Speed test failed: {e}")
+#         input("Try again later. Press Enter to continue.")
+
+
+
 
 
 
@@ -274,7 +299,15 @@ def check_unauthorized_devices():
         print("✅ No unauthorized devices found.")
 
 
+
+
+
+
+
+
 # ============================== STEP 8: TRAFFIC MONITORING ==============================
+
+
 
 def run_traffic_monitor(interface):
     print("\n📊 Step 8: Traffic Monitoring...")
@@ -282,37 +315,28 @@ def run_traffic_monitor(interface):
 
 
 
-# ============================== STEP 9: Anomaly Detection ==============================
 
-def analyze_packet(pkt):
-    if IP in pkt:
-        ip = pkt[IP]
-        proto = pkt.proto if hasattr(pkt, 'proto') else -1
-        sport = pkt[TCP].sport if TCP in pkt else (pkt[UDP].sport if UDP in pkt else None)
-        dport = pkt[TCP].dport if TCP in pkt else (pkt[UDP].dport if UDP in pkt else None)
-        print(f"📦 {ip.src}:{sport} → {ip.dst}:{dport} (Proto: {proto})")
-        return [time.time(), len(pkt), proto]
-    return None
 
-def sniff_and_detect(interface):
-    print("\n🎯 Sniffing Packets for Anomaly Detection...")
-    captured = []
-    sniff(iface=interface, prn=lambda pkt: captured.append(analyze_packet(pkt)), store=0, count=50)
-    captured = [p for p in captured if p]
-    if not captured:
-        print("❌ No packets captured.")
-        return
-    X = np.array([[p[1], p[2]] for p in captured if isinstance(p[2], (int, float))])
-    if len(X) < 5:
-        print("⚠️ Not enough data for anomaly detection.")
-        return
-    model = IsolationForest(contamination=0.1)
-    model.fit(X)
-    preds = model.predict(X)
-    anomalies = sum(preds == -1)
-    print(f"🔍 Anomalies Detected: {anomalies}")
-    if anomalies > 5:
-        input("🚨 Multiple anomalies found!\n💡 Possible congestion or attack.\nPress Enter to continue.")
+
+
+
+# ==================== STEP 9: First-Time Connection Log ====================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ============================== MAIN ==============================
 
@@ -325,17 +349,12 @@ def run_diagnostics():
     if not ping_router(): return
     if not dns_check(): return
     if not ping_external(): return
-    speed_test()
+# 
+#     speed_test()
     check_unauthorized_devices()
-    
-    # ✅ Run monitoring here with valid interface
     run_traffic_monitor(interface)
 
-    if input("\n🔬 Run packet sniffing & anomaly detection? (y/n): ").lower() == "y":
-        sniff_and_detect(interface)
-    
     print("\n✅ Network troubleshooting complete.")
-
 
 if __name__ == "__main__":
     run_diagnostics()
