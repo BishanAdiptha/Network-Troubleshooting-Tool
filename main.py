@@ -7,7 +7,7 @@ import platform
 import subprocess
 from scapy.all import sniff, IP, TCP, UDP, ARP, Ether, srp
 from monitor import start_monitoring
-from network_activity import start_network_activity_monitor
+
 import subprocess
 
 
@@ -310,7 +310,7 @@ def check_unauthorized_devices():
 
 
 def run_traffic_monitor(interface):
-    print("\n📊 Step 8: Traffic Monitoring...")
+    print("\n📊 Step 8: New Connections Monitoring...")
     start_monitoring(interface)
 
 
@@ -358,3 +358,4 @@ def run_diagnostics():
 
 if __name__ == "__main__":
     run_diagnostics()
+
