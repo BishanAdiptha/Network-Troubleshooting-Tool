@@ -35,26 +35,33 @@ def follow_up_questions(interface):
         input("📶 Is Wi-Fi turned ON and connected to the correct network? (Press Enter to continue) ")
     input("✈️ Is Airplane mode OFF on your device? (Press Enter to continue) ")
 
-def check_cable_or_wifi(target_interface):
-    print(f"\n🔍 Checking connectivity for: {target_interface}")
+def check_cable_or_wifi_gui(target_interface):
+    result_text = ""
+    guidance = []
     is_connected = False
+
     if platform.system() == "Windows":
         result = subprocess.getoutput("netsh interface show interface")
         for line in result.splitlines():
             if target_interface.lower() in line.lower():
                 if "Connected" in line:
-                    print(f"✅ {target_interface} is connected.")
+                    result_text = f"✅ {target_interface} is connected."
                     is_connected = True
                 else:
-                    print(f"⚠️ {target_interface} is not connected.")
-                    is_connected = False
+                    result_text = f"⚠️ {target_interface} is not connected."
+                    if "ethernet" in target_interface.lower():
+                        guidance = [
+                            "🧩 Is the Ethernet cable plugged in properly?",
+                            "💡 Are the LEDs blinking on the port or router?"
+                        ]
+                    elif "wi-fi" in target_interface.lower() or "wifi" in target_interface.lower():
+                        guidance = [
+                            "📶 Is Wi-Fi turned ON and connected to the correct network?",
+                            "✈️ Is Airplane mode OFF on your device?"
+                        ]
                 break
-        if not is_connected:
-            follow_up_questions(target_interface)
-        return is_connected
-    else:
-        print("⚠ Cannot verify connectivity on non-Windows systems.")
-        return True
+    return result_text, guidance
+
 
 
 
