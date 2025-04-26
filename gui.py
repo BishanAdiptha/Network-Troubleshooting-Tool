@@ -1,3 +1,5 @@
+# gui.py
+
 import sys
 import subprocess
 import platform
@@ -5,17 +7,17 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QHBoxLayout,
     QTabWidget, QTextEdit, QScrollArea, QFrame
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QTextCursor
 
 from main import check_cable_or_wifi_gui
-from step02 import Step02Tab
 
 def list_interfaces():
     if platform.system() != "Windows":
         return []
 
     result = subprocess.getoutput("netsh interface show interface")
-    lines = result.strip().splitlines()[3:]  # Skip header
+    lines = result.strip().splitlines()[3:]
     interfaces = []
 
     for line in lines:
@@ -69,11 +71,11 @@ class InterfaceCard(QFrame):
 class Step01Tab(QWidget):
     def __init__(self, tabs):
         super().__init__()
-        self.selected_card = None
+        self.selected_interface = None
         self.tabs = tabs
         self.layout = QVBoxLayout()
 
-        self.title = QLabel("Step 01\nPhysical Connectivity Check")
+        self.title = QLabel("Step 01\nPhysical Connectivity Check\n")
         self.title.setAlignment(Qt.AlignHCenter)
         self.title.setStyleSheet("font-size: 24px; font-weight: bold;")
         self.layout.addWidget(self.title)
@@ -98,7 +100,17 @@ class Step01Tab(QWidget):
 
         self.status_box = QTextEdit()
         self.status_box.setReadOnly(True)
-        self.status_box.setStyleSheet("background: #0f1b2a; color: white; font-size: 14px; border-radius: 10px; padding: 10px;")
+        self.status_box.setStyleSheet("""
+            QTextEdit {
+                background: #0f1b2a;
+                color: white;
+                font-size: 14px;
+                font-family: Consolas, monospace;
+                border-radius: 10px;
+                padding: 10px;
+                border: none;
+            }
+        """)
         self.layout.addWidget(self.status_box)
 
         self.next_btn = QPushButton("Next  »»")
@@ -131,39 +143,74 @@ class Step01Tab(QWidget):
 
     def show_status(self, name):
         output, guidance = check_interface(name)
+
         text = output
         if guidance:
-            text += "\n\n📋 Additional Physical Checks:\n" + "\n".join(guidance)
-        self.status_box.setText(text)
+            text += "\n\n📋 Additional Physical Checks:\n\n" + "\n".join(guidance)
+
+        self.selected_interface = name
+
+        self.status_box.clear()
+
+        # ✨ Start typing animation
+        self.lines_to_show = []
+        color_mapping = {
+            "✅": "limegreen",
+            "⚠️": "orange",
+            "❌": "red",
+            "💡": "deepskyblue",
+            "📋": "deepskyblue",
+            "📶": "plum",
+            "✈️": "plum"
+        }
+
+        for line in text.splitlines():
+            color = "white"
+            for symbol, c in color_mapping.items():
+                if line.strip().startswith(symbol):
+                    color = c
+                    break
+            safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace(" ", "&nbsp;")
+            self.lines_to_show.append(f'<span style="color: {color}; font-family: Consolas;">{safe_line}</span>')
+
+        self.current_line_index = 0
+        self.cursor = self.status_box.textCursor()
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.insert_next_line)
+        self.timer.start(100)
 
         for card in self.interface_cards:
             card.update_style(selected=(card.name == name))
 
-    def go_to_step2(self):
-        selected_name = None
-        for card in self.interface_cards:
-            if card.label_name.styleSheet().startswith("color: white"):
-                selected_name = card.name
-                break
+    def insert_next_line(self):
+        if self.current_line_index < len(self.lines_to_show):
+            self.cursor.insertHtml(self.lines_to_show[self.current_line_index] + "<br>")
+            self.status_box.setTextCursor(self.cursor)
+            self.current_line_index += 1
+        else:
+            self.timer.stop()
 
-        if not selected_name:
-            self.status_box.setText("⚠ Please select an interface before proceeding.")
+    def go_to_step2(self):
+        if not self.selected_interface:
+            self.status_box.clear()
+            self.insert_html_text("⚠️ Please select an interface before proceeding.")
             return
 
         from step02 import Step02Tab
-        step2 = Step02Tab(self.tabs, selected_name, self.go_to_step3_placeholder)
+        step2 = Step02Tab(self.tabs, self.selected_interface, lambda: self.go_to_step3(self.selected_interface))
         self.tabs.removeTab(0)
-        self.tabs.insertTab(0, step2, "Troubleshoot")  # Keep it as "Troubleshoot"
+        self.tabs.insertTab(0, step2, "Troubleshoot")
         self.tabs.setCurrentIndex(0)
 
+    def go_to_step3(self, selected_interface):
+        from step03 import Step03Tab
+        step3 = Step03Tab(self.tabs, selected_interface, lambda: self.go_to_step2(), self.go_to_step4_placeholder)
+        self.tabs.removeTab(0)
+        self.tabs.insertTab(0, step3, "Troubleshoot")
+        self.tabs.setCurrentIndex(0)
 
-    def go_to_step3_placeholder(self):
-        print("Step 03 is not implemented yet.")
-
-
-
-    def go_to_step1(self):
-        self.tabs.setCurrentWidget(self)
+    def go_to_step4_placeholder(self):
+        print("Step 04 is not implemented yet.")
 
 class MainWindow(QWidget):
     def __init__(self):

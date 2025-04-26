@@ -137,22 +137,14 @@ def check_ip_and_dhcp_info(selected_interface):
 
 # ============================== STEP 3: Ping Router ==============================
 
+
+
 def ping_router(gateway="192.168.1.1"):
-    print("\n📶 Step 3: Pinging Router...")
-    output = os.popen(f"ping -n 2 {gateway}" if os.name == "nt" else f"ping -c 2 {gateway}").read()
-    print(output)
-    if "TTL=" in output or "bytes from" in output:
-        print("✅ Router is reachable.")
-        return True
-    else:
-        input("❌ Router is unreachable.\n"
-              "💡 Suggested Steps:\n"
-              " - Ensure router is powered on\n"
-              " - Check cable/Wi-Fi connection\n"
-              " - Restart router and PC\n"
-              " - Verify gateway IP is correct\n"
-              "Press Enter to continue.")
-        return False
+    output = os.popen(f"ping -n 4 {gateway}" if os.name == "nt" else f"ping -c 4 {gateway}").read()
+    success = "TTL=" in output or "bytes from" in output
+    return output.strip(), success
+
+
 
 
 
