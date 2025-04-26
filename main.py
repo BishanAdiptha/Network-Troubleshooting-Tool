@@ -66,13 +66,11 @@ def check_cable_or_wifi_gui(target_interface):
 
 
 
-# ============================== STEP 2: IP Address & DHCP ==============================
+# ============================== STEP 2: IP Address & DHCP (GUI Version) ==============================
 
-def check_ip_and_dhcp(selected_interface):
-    print("\n📡 Step 2: IP Address & DHCP Configuration Check")
+def check_ip_and_dhcp_info(selected_interface):
     if platform.system() != "Windows":
-        print("⚠️ IP/DHCP checks are only supported on Windows.")
-        return True
+        return "⚠️ IP/DHCP checks are only supported on Windows."
 
     output = subprocess.getoutput("ipconfig /all")
     lines = output.splitlines()
@@ -82,6 +80,7 @@ def check_ip_and_dhcp(selected_interface):
     ip_address = ""
     gateway = ""
     dns_servers = []
+    messages = []
 
     for i, line in enumerate(lines):
         line = line.strip()
@@ -95,10 +94,7 @@ def check_ip_and_dhcp(selected_interface):
             dhcp_enabled = "Yes" in line
         if "IPv4 Address" in line or "IPv4-Adresse" in line:
             ip_address = line.split(":")[-1].strip().split("(")[0].strip()
-            if ip_address.startswith("169.254"):
-                ip_valid = False
-            else:
-                ip_valid = True
+            ip_valid = not ip_address.startswith("169.254")
         if "Default Gateway" in line and line.split(":")[-1].strip():
             gateway = line.split(":")[-1].strip()
         if "DNS Servers" in line:
@@ -111,29 +107,28 @@ def check_ip_and_dhcp(selected_interface):
             break
 
     if not ip_address:
-        print(f"⚠️ Could not determine IP address for {selected_interface}")
-        return False
+        return f"⚠️ Could not determine IP address for {selected_interface}"
 
     if dhcp_enabled:
         if ip_valid:
-            print(f"✅ Valid IP assigned via DHCP on {selected_interface}: {ip_address}")
+            messages.append(f"✅ Valid IP assigned via DHCP on {selected_interface}: {ip_address}")
         else:
-            print(f"⚠️ DHCP is enabled but IP is invalid: {ip_address}")
-            input("💡 Suggested Steps:\n"
-                  " - Check your IP settings\n"
-                  " - Reset adapter or restart PC\n"
-                  " - Try 'ipconfig /release' then 'ipconfig /renew'\n"
-                  "Press Enter to continue.")
+            messages.append(f"⚠️ DHCP is enabled but IP is invalid: {ip_address}")
+            messages.append("💡 Suggested Steps:")
+            messages.append("   - Check your IP settings")
+            messages.append("   - Reset adapter or restart PC")
+            messages.append("   - Try 'ipconfig /release' then 'ipconfig /renew'")
     else:
-        print(f"⚠️ DHCP is disabled on {selected_interface}")
-        print(f"ℹ️ Static IP assigned: {ip_address}")
+        messages.append(f"⚠️ DHCP is disabled on {selected_interface}")
+        messages.append(f"ℹ️ Static IP assigned: {ip_address}")
         if not gateway:
-            print("❌ Default gateway is missing.")
+            messages.append("❌ Default gateway is missing.")
         if not dns_servers:
-            print("❌ No DNS servers configured.")
-        input("💡 Please reconfigure IP or enable DHCP in adapter settings.\n"
-              "Press Enter to continue.")
-    return ip_valid and (dhcp_enabled or gateway)
+            messages.append("❌ No DNS servers configured.")
+        messages.append("💡 Please reconfigure IP or enable DHCP in adapter settings.")
+
+    return "\n".join(messages)
+
 
 
 
@@ -196,26 +191,26 @@ def ping_external():
 
 # ============================== STEP 6: Speed Test =============================
 
-# def speed_test():
-#     print("\n🚀 Step 6: Speed Test...")
-#     try:
-#         import speedtest
+    def speed_test():
+        print("\n🚀 Step 6: Speed Test...")
+        try:
+            import speedtest
 
-#         st = speedtest.Speedtest()
-#         st.get_best_server()
-#         down = st.download() / 1_000_000
-#         up = st.upload() / 1_000_000
-#         print(f"\n⬇ Download Speed: {down:.2f} Mbps")
-#         print(f"⬆ Upload Speed: {up:.2f} Mbps")
-#         if down < 2: input("⚠️ Very slow download. Try limiting devices.\nPress Enter to continue.")
-#         elif down < 5: input("⚠️ Slow download speed.\nPress Enter to continue.")
-#         else: print("✅ Download speed is good.")
-#         if up < 0.5: input("⚠️ Very slow upload.\nPress Enter to continue.")
-#         elif up < 2: input("⚠️ Slow upload speed.\nPress Enter to continue.")
-#         else: print("✅ Upload speed is good.")
-#     except Exception as e:
-#         print(f"❌ Speed test failed: {e}")
-#         input("Try again later. Press Enter to continue.")
+            st = speedtest.Speedtest()
+            st.get_best_server()
+            down = st.download() / 1_000_000
+            up = st.upload() / 1_000_000
+            print(f"\n⬇ Download Speed: {down:.2f} Mbps")
+            print(f"⬆ Upload Speed: {up:.2f} Mbps")
+            if down < 2: input("⚠️ Very slow download. Try limiting devices.\nPress Enter to continue.")
+            elif down < 5: input("⚠️ Slow download speed.\nPress Enter to continue.")
+            else: print("✅ Download speed is good.")
+            if up < 0.5: input("⚠️ Very slow upload.\nPress Enter to continue.")
+            elif up < 2: input("⚠️ Slow upload speed.\nPress Enter to continue.")
+            else: print("✅ Upload speed is good.")
+        except Exception as e:
+            print(f"❌ Speed test failed: {e}")
+            input("Try again later. Press Enter to continue.")
 
 
 
@@ -356,8 +351,9 @@ def run_diagnostics():
     if not ping_router(): return
     if not dns_check(): return
     if not ping_external(): return
-# 
-#     speed_test()
+    
+    speed_test()
+    
     check_unauthorized_devices()
     run_traffic_monitor(interface)
 

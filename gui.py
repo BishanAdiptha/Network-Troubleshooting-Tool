@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from main import check_cable_or_wifi_gui
+from step02 import Step02Tab
 
 def list_interfaces():
     if platform.system() != "Windows":
@@ -66,10 +67,10 @@ class InterfaceCard(QFrame):
             self.label_status.setStyleSheet(f"color: {color}; font-weight: bold;")
 
 class Step01Tab(QWidget):
-    def __init__(self):
+    def __init__(self, tabs):
         super().__init__()
         self.selected_card = None
-
+        self.tabs = tabs
         self.layout = QVBoxLayout()
 
         self.title = QLabel("Step 01\nPhysical Connectivity Check")
@@ -78,7 +79,6 @@ class Step01Tab(QWidget):
         self.layout.addWidget(self.title)
 
         self.desc = QLabel("Choose your network interface that you’re using right now:")
-        self.desc.setAlignment(Qt.AlignHCenter)
         self.layout.addWidget(self.desc)
 
         self.button_container = QVBoxLayout()
@@ -102,7 +102,18 @@ class Step01Tab(QWidget):
         self.layout.addWidget(self.status_box)
 
         self.next_btn = QPushButton("Next  »»")
-        self.next_btn.setStyleSheet("background-color: #0094ff; color: white; padding: 8px 20px; border-radius: 6px;")
+        self.next_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0094ff;
+                color: white;
+                padding: 8px 20px;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #007acc;
+            }
+        """)
+        self.next_btn.clicked.connect(self.go_to_step2)
 
         next_btn_layout = QHBoxLayout()
         next_btn_layout.addStretch()
@@ -128,6 +139,32 @@ class Step01Tab(QWidget):
         for card in self.interface_cards:
             card.update_style(selected=(card.name == name))
 
+    def go_to_step2(self):
+        selected_name = None
+        for card in self.interface_cards:
+            if card.label_name.styleSheet().startswith("color: white"):
+                selected_name = card.name
+                break
+
+        if not selected_name:
+            self.status_box.setText("⚠ Please select an interface before proceeding.")
+            return
+
+        from step02 import Step02Tab
+        step2 = Step02Tab(self.tabs, selected_name, self.go_to_step3_placeholder)
+        self.tabs.removeTab(0)
+        self.tabs.insertTab(0, step2, "Troubleshoot")  # Keep it as "Troubleshoot"
+        self.tabs.setCurrentIndex(0)
+
+
+    def go_to_step3_placeholder(self):
+        print("Step 03 is not implemented yet.")
+
+
+
+    def go_to_step1(self):
+        self.tabs.setCurrentWidget(self)
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -138,7 +175,9 @@ class MainWindow(QWidget):
         layout = QVBoxLayout()
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(Step01Tab(), "Troubleshoot")
+        self.step01_tab = Step01Tab(self.tabs)
+
+        self.tabs.addTab(self.step01_tab, "Troubleshoot")
         self.tabs.addTab(QWidget(), "First Network Connections")
         self.tabs.addTab(QWidget(), "Anomaly Notifications")
 
