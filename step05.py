@@ -1,16 +1,13 @@
-# step03.py
+# step05.py
 import platform
 import subprocess
-import os
 from PySide6.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QTextCursor
 
-from main import ping_router
-
-class Step03Tab(QWidget):
+class Step05Tab(QWidget):
     def __init__(self, tabs, selected_interface):
         super().__init__()
         self.tabs = tabs
@@ -18,12 +15,12 @@ class Step03Tab(QWidget):
 
         layout = QVBoxLayout()
 
-        title = QLabel("\nStep 03\nRouter Status Check\n")
+        title = QLabel("\nStep 05\nInternet Access Check\n")
         title.setAlignment(Qt.AlignHCenter)
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
         layout.addWidget(title)
 
-        desc = QLabel("Checking if your router is reachable by pinging the gateway...")
+        desc = QLabel("Checking if your internet is accessible by pinging 8.8.8.8...")
         desc.setStyleSheet("font-size: 14px; color: black; margin-bottom: 10px;")
         layout.addWidget(desc)
 
@@ -54,7 +51,7 @@ class Step03Tab(QWidget):
                 background-color: #007acc;
             }
         """)
-        self.prev_btn.clicked.connect(self.go_back_to_step2)
+        self.prev_btn.clicked.connect(self.go_back_to_step4)
 
         self.next_btn = QPushButton("Next  »»")
         self.next_btn.setStyleSheet("""
@@ -68,7 +65,7 @@ class Step03Tab(QWidget):
                 background-color: #007acc;
             }
         """)
-        self.next_btn.clicked.connect(self.go_to_step4)
+        self.next_btn.clicked.connect(self.go_to_step6)
 
         nav_layout = QHBoxLayout()
         nav_layout.addWidget(self.prev_btn)
@@ -78,50 +75,36 @@ class Step03Tab(QWidget):
         layout.addLayout(nav_layout)
         self.setLayout(layout)
 
-        # ⏳ Immediate "Please wait..." message
-        self.output_box.setPlainText("🌐 Detecting default gateway and checking router reachability...\n\nPlease wait...")
-        QTimer.singleShot(500, self.check_router)
+        self.output_box.setPlainText("🌎 Pinging 8.8.8.8 to check internet access...\n\nPlease wait...")
+        QTimer.singleShot(500, self.check_internet_access)
 
-    def check_router(self):
-        if platform.system() != "Windows":
-            self.output_box.setText("⚠️ This tool only supports Windows.")
-            return
+    def check_internet_access(self):
+        command = "ping -n 4 8.8.8.8" if platform.system() == "Windows" else "ping -c 4 8.8.8.8"
+        result = subprocess.getoutput(command)
 
-        output = subprocess.getoutput("ipconfig /all")
-        default_gateway = self.extract_default_gateway(output)
-
-        if not default_gateway:
-            self.output_box.setText("❌ No default gateway detected. Cannot perform router ping check.")
-            return
-
-        ping_result, success = ping_router(default_gateway)
+        success = "TTL=" in result or "bytes from" in result
 
         self.output_box.clear()
         self.lines_to_show = []
 
-        self.lines_to_show.append(f'<span style="color: deepskyblue;">🌐 Default Gateway detected: {default_gateway}</span>')
-        self.lines_to_show.append("")
-
-        for line in ping_result.splitlines():
-            safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace(" ", "&nbsp;")
-            self.lines_to_show.append(f'<span style="color: white;">{safe_line}</span>')
-
-        self.lines_to_show.append("")
+        self.lines_to_show.append('<span style="color: deepskyblue;">🌎 Pinging 8.8.8.8 to check internet access...</span>')
+        safe_result = result.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>").replace(" ", "&nbsp;")
+        self.lines_to_show.append(f'<pre style="color: white;">{safe_result}</pre>')
 
         if success:
-            self.lines_to_show.append(f'<span style="color: limegreen;">✅ Router is reachable at {default_gateway}</span>')
+            self.lines_to_show.append('<span style="color: limegreen;">✅ Internet is accessible!</span>')
         else:
-            self.lines_to_show.append(f'<span style="color: red;">❌ Router is NOT reachable at {default_gateway}</span>')
+            self.lines_to_show.append('<span style="color: red;">❌ Cannot reach the internet.</span>')
             self.lines_to_show.append('<span style="color: deepskyblue;">💡 Suggested Steps:</span>')
-            self.lines_to_show.append('<span style="color: white;"> - Check Ethernet/Wi-Fi connection</span>')
-            self.lines_to_show.append('<span style="color: white;"> - Restart your router</span>')
-            self.lines_to_show.append('<span style="color: white;"> - Ensure router is powered ON</span>')
+            self.lines_to_show.append('<span style="color: white;"> - Check Wi-Fi/Ethernet connection</span>')
+            self.lines_to_show.append('<span style="color: white;"> - Restart your router or modem</span>')
+            self.lines_to_show.append('<span style="color: white;"> - Contact your ISP</span>')
 
         self.current_line_index = 0
         self.cursor = self.output_box.textCursor()
         self.timer = QTimer()
         self.timer.timeout.connect(self.insert_next_line)
-        self.timer.start(150)
+        self.timer.start(120)
 
     def insert_next_line(self):
         if self.current_line_index < len(self.lines_to_show):
@@ -131,25 +114,16 @@ class Step03Tab(QWidget):
         else:
             self.timer.stop()
 
-    def extract_default_gateway(self, output):
-        lines = output.splitlines()
-        for line in lines:
-            if "Default Gateway" in line and ":" in line:
-                parts = line.split(":")
-                if len(parts) > 1 and parts[-1].strip():
-                    return parts[-1].strip()
-        return ""
-
-    def go_back_to_step2(self):
-        from step02 import Step02Tab
-        step2 = Step02Tab(self.tabs, self.selected_interface)
-        self.tabs.removeTab(0)
-        self.tabs.insertTab(0, step2, "Troubleshoot")
-        self.tabs.setCurrentIndex(0)
-
-    def go_to_step4(self):
+    def go_back_to_step4(self):
         from step04 import Step04Tab
         step4 = Step04Tab(self.tabs, self.selected_interface)
         self.tabs.removeTab(0)
         self.tabs.insertTab(0, step4, "Troubleshoot")
+        self.tabs.setCurrentIndex(0)
+
+    def go_to_step6(self):
+        from step06 import Step06Tab
+        step6 = Step06Tab(self.tabs, self.selected_interface)
+        self.tabs.removeTab(0)
+        self.tabs.insertTab(0, step6, "Troubleshoot")
         self.tabs.setCurrentIndex(0)

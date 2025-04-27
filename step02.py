@@ -1,5 +1,4 @@
 # step02.py
-
 import platform
 import subprocess
 import re
@@ -12,22 +11,21 @@ from PySide6.QtGui import QTextCursor
 from main import check_ip_and_dhcp_info
 
 class Step02Tab(QWidget):
-    def __init__(self, tabs, selected_interface, switch_to_step3_callback):
+    def __init__(self, tabs, selected_interface):
         super().__init__()
         self.tabs = tabs
         self.selected_interface = selected_interface
-        self.switch_to_step3_callback = switch_to_step3_callback
 
         layout = QVBoxLayout()
 
-        self.title = QLabel("Step 02\nIP/DHCP Diagnostics\n")
-        self.title.setAlignment(Qt.AlignHCenter)
-        self.title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        layout.addWidget(self.title)
+        title = QLabel("\nStep 02\nIP/DHCP Diagnostics\n")
+        title.setAlignment(Qt.AlignHCenter)
+        title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        layout.addWidget(title)
 
-        self.desc = QLabel("IP and DHCP checking on your network ............")
-        self.desc.setStyleSheet("font-size: 14px; color: black; margin-bottom: 10px;")
-        layout.addWidget(self.desc)
+        desc = QLabel("Checking your IP address and DHCP settings...")
+        desc.setStyleSheet("font-size: 14px; color: black; margin-bottom: 10px;")
+        layout.addWidget(desc)
 
         self.output_box = QTextEdit()
         self.output_box.setReadOnly(True)
@@ -35,23 +33,11 @@ class Step02Tab(QWidget):
             QTextEdit {
                 background: #0f1b2a;
                 color: white;
+                font-family: Consolas;
                 font-size: 14px;
-                font-family: Consolas, "Courier New", monospace;
                 border-radius: 10px;
                 padding: 10px;
                 border: none;
-            }
-            QScrollBar:vertical {
-                width: 8px;
-                background: #1e1e2f;
-            }
-            QScrollBar::handle:vertical {
-                background: #5c5c8a;
-                min-height: 20px;
-                border-radius: 4px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
             }
         """)
         layout.addWidget(self.output_box)
@@ -82,7 +68,7 @@ class Step02Tab(QWidget):
                 background-color: #007acc;
             }
         """)
-        self.next_btn.clicked.connect(self.switch_to_step3_callback)
+        self.next_btn.clicked.connect(self.go_to_step3)
 
         nav_layout = QHBoxLayout()
         nav_layout.addWidget(self.prev_btn)
@@ -92,13 +78,13 @@ class Step02Tab(QWidget):
         layout.addLayout(nav_layout)
         self.setLayout(layout)
 
-        # ✨ Animation start after layout ready
+        # 🚀 Animation delay
         self.output_box.setPlainText("🔍 Running IP and DHCP diagnostics...\n\nPlease wait...")
         QTimer.singleShot(500, self.run_diagnostics)
 
     def run_diagnostics(self):
         if platform.system() != "Windows":
-            self.output_box.setText("⚠ This diagnostic tool only works on Windows.")
+            self.output_box.setText("⚠️ This diagnostic tool only works on Windows.")
             return
 
         ipconfig_output = subprocess.getoutput("ipconfig /all")
@@ -107,23 +93,24 @@ class Step02Tab(QWidget):
 
         self.output_box.clear()
 
-        # Prepare lines for animation typing
+        # Typing animation preparation
         self.lines_to_show = []
 
-        # Add ipconfig output lines
+        # Windows IP Config Section
         for line in ipconfig_filtered.strip().splitlines():
             safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace(" ", "&nbsp;")
             self.lines_to_show.append(f'<span style="color: white;">{safe_line}</span>')
 
-        self.lines_to_show.append("")  # gap
+        self.lines_to_show.append("")  # gap line
 
-        # Add DHCP diagnostics with color
+        # DHCP check lines with colors
         color_mapping = {
             "✅": "limegreen",
             "⚠️": "orange",
             "❌": "red",
             "💡": "deepskyblue"
         }
+
         for line in dhcp_diagnostics.strip().splitlines():
             color = "white"
             for symbol, c in color_mapping.items():
@@ -131,7 +118,7 @@ class Step02Tab(QWidget):
                     color = c
                     break
             safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace(" ", "&nbsp;")
-            self.lines_to_show.append(f'<span style="color: {color}; font-family: Consolas;">{safe_line}</span>')
+            self.lines_to_show.append(f'<span style="color: {color};">{safe_line}</span>')
 
         # Start animation
         self.current_line_index = 0
@@ -148,11 +135,10 @@ class Step02Tab(QWidget):
         else:
             self.timer.stop()
 
-    def extract_ipconfig_section(self, ipconfig_output, selected_interface):
-        blocks = re.split(r"\r?\n(?=\S)", ipconfig_output.strip())
+    def extract_ipconfig_section(self, output, selected_interface):
+        blocks = re.split(r"\r?\n(?=\S)", output.strip())
         global_block = ""
         selected_block = ""
-
         selected_interface_lower = selected_interface.lower().strip()
 
         for block in blocks:
@@ -164,8 +150,7 @@ class Step02Tab(QWidget):
             if header == "windows ip configuration":
                 global_block = block.strip()
             elif (f"ethernet adapter {selected_interface_lower}:" in header or
-                  f"wireless lan adapter {selected_interface_lower}:" in header or
-                  f"unknown adapter {selected_interface_lower}:" in header):
+                  f"wireless lan adapter {selected_interface_lower}:" in header):
                 selected_block = block.strip()
 
         formatted_global = self.format_block(global_block)
@@ -189,4 +174,11 @@ class Step02Tab(QWidget):
         step1 = Step01Tab(self.tabs)
         self.tabs.removeTab(0)
         self.tabs.insertTab(0, step1, "Troubleshoot")
+        self.tabs.setCurrentIndex(0)
+
+    def go_to_step3(self):
+        from step03 import Step03Tab
+        step3 = Step03Tab(self.tabs, self.selected_interface)
+        self.tabs.removeTab(0)
+        self.tabs.insertTab(0, step3, "Troubleshoot")
         self.tabs.setCurrentIndex(0)

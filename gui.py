@@ -1,11 +1,10 @@
 # gui.py
-
 import sys
 import subprocess
 import platform
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QHBoxLayout,
-    QTabWidget, QTextEdit, QScrollArea, QFrame
+    QApplication, QWidget, QVBoxLayout, QTabWidget, QScrollArea, QFrame,
+    QLabel, QTextEdit, QPushButton, QHBoxLayout
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QTextCursor
@@ -41,16 +40,14 @@ class InterfaceCard(QFrame):
 
         self.label_name = QLabel(name)
         self.label_name.setAlignment(Qt.AlignCenter)
-        self.label_name.setObjectName("interfaceName")
 
         self.label_status = QLabel(state)
         self.label_status.setAlignment(Qt.AlignCenter)
-        self.label_status.setObjectName("interfaceStatus")
 
-        self.layout = QVBoxLayout()
-        self.layout.addWidget(self.label_name)
-        self.layout.addWidget(self.label_status)
-        self.setLayout(self.layout)
+        layout = QVBoxLayout()
+        layout.addWidget(self.label_name)
+        layout.addWidget(self.label_status)
+        self.setLayout(layout)
 
         self.update_style(selected=False)
 
@@ -60,28 +57,29 @@ class InterfaceCard(QFrame):
     def update_style(self, selected=False):
         color = "green" if self.state.lower() == "connected" else "red"
         if selected:
-            self.setStyleSheet("QFrame#interfaceCard { border: 2px solid #007bff; background-color: #007bff; border-radius: 8px; padding: 10px; }")
-            self.label_name.setStyleSheet("color: white; font-weight: 600;")
+            self.setStyleSheet("QFrame#interfaceCard { border: 2px solid #007bff; background: #007bff; border-radius: 8px; padding: 10px; }")
+            self.label_name.setStyleSheet("color: white; font-weight: bold;")
             self.label_status.setStyleSheet("color: white; font-weight: bold;")
         else:
-            self.setStyleSheet(f"QFrame#interfaceCard {{ border: 2px solid {color}; border-radius: 8px; padding: 10px; background-color: white; }}")
-            self.label_name.setStyleSheet("color: black; font-weight: 600;")
+            self.setStyleSheet(f"QFrame#interfaceCard {{ border: 2px solid {color}; background: white; border-radius: 8px; padding: 10px; }}")
+            self.label_name.setStyleSheet("color: black; font-weight: bold;")
             self.label_status.setStyleSheet(f"color: {color}; font-weight: bold;")
 
 class Step01Tab(QWidget):
     def __init__(self, tabs):
         super().__init__()
-        self.selected_interface = None
         self.tabs = tabs
-        self.layout = QVBoxLayout()
+        self.selected_interface = None
 
-        self.title = QLabel("Step 01\nPhysical Connectivity Check\n")
-        self.title.setAlignment(Qt.AlignHCenter)
-        self.title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        self.layout.addWidget(self.title)
+        layout = QVBoxLayout()
 
-        self.desc = QLabel("Choose your network interface that you’re using right now:")
-        self.layout.addWidget(self.desc)
+        title = QLabel("\nStep 01\nPhysical Connectivity Check\n")
+        title.setAlignment(Qt.AlignHCenter)
+        title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        layout.addWidget(title)
+
+        desc = QLabel("Choose your network interface that you’re using right now:")
+        layout.addWidget(desc)
 
         self.button_container = QVBoxLayout()
         self.interface_cards = []
@@ -91,12 +89,9 @@ class Step01Tab(QWidget):
         scroll.setWidgetResizable(True)
         scroll_content = QWidget()
         scroll_content.setLayout(self.button_container)
-        scroll.setStyleSheet("QWidget { background-color: transparent; }")
+        scroll.setStyleSheet("background: transparent;")
         scroll.setWidget(scroll_content)
-        self.layout.addWidget(scroll)
-
-        self.status_label = QLabel("Status:")
-        self.layout.addWidget(self.status_label)
+        layout.addWidget(scroll)
 
         self.status_box = QTextEdit()
         self.status_box.setReadOnly(True)
@@ -104,35 +99,35 @@ class Step01Tab(QWidget):
             QTextEdit {
                 background: #0f1b2a;
                 color: white;
+                font-family: Consolas;
                 font-size: 14px;
-                font-family: Consolas, monospace;
                 border-radius: 10px;
                 padding: 10px;
                 border: none;
             }
         """)
-        self.layout.addWidget(self.status_box)
+        layout.addWidget(self.status_box)
 
-        self.next_btn = QPushButton("Next  »»")
-        self.next_btn.setStyleSheet("""
+        next_btn = QPushButton("Next  »»")
+        next_btn.setStyleSheet("""
             QPushButton {
-                background-color: #0094ff;
+                background: #0094ff;
                 color: white;
-                padding: 8px 20px;
+                padding: 10px 20px;
                 border-radius: 6px;
             }
             QPushButton:hover {
-                background-color: #007acc;
+                background: #007acc;
             }
         """)
-        self.next_btn.clicked.connect(self.go_to_step2)
+        next_btn.clicked.connect(self.go_to_step2)
 
-        next_btn_layout = QHBoxLayout()
-        next_btn_layout.addStretch()
-        next_btn_layout.addWidget(self.next_btn)
-        self.layout.addLayout(next_btn_layout)
+        nav_layout = QHBoxLayout()
+        nav_layout.addStretch()
+        nav_layout.addWidget(next_btn)
+        layout.addLayout(nav_layout)
 
-        self.setLayout(self.layout)
+        self.setLayout(layout)
 
     def load_interface_buttons(self):
         interfaces = list_interfaces()
@@ -143,7 +138,6 @@ class Step01Tab(QWidget):
 
     def show_status(self, name):
         output, guidance = check_interface(name)
-
         text = output
         if guidance:
             text += "\n\n📋 Additional Physical Checks:\n\n" + "\n".join(guidance)
@@ -151,17 +145,10 @@ class Step01Tab(QWidget):
         self.selected_interface = name
 
         self.status_box.clear()
-
-        # ✨ Start typing animation
-        self.lines_to_show = []
+        lines_to_show = []
         color_mapping = {
-            "✅": "limegreen",
-            "⚠️": "orange",
-            "❌": "red",
-            "💡": "deepskyblue",
-            "📋": "deepskyblue",
-            "📶": "plum",
-            "✈️": "plum"
+            "✅": "limegreen", "⚠️": "orange", "❌": "red",
+            "💡": "deepskyblue", "📋": "deepskyblue", "📶": "plum", "✈️": "plum"
         }
 
         for line in text.splitlines():
@@ -171,60 +158,40 @@ class Step01Tab(QWidget):
                     color = c
                     break
             safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace(" ", "&nbsp;")
-            self.lines_to_show.append(f'<span style="color: {color}; font-family: Consolas;">{safe_line}</span>')
+            lines_to_show.append(f'<span style="color: {color};">{safe_line}</span>')
 
-        self.current_line_index = 0
-        self.cursor = self.status_box.textCursor()
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.insert_next_line)
-        self.timer.start(100)
+        cursor = self.status_box.textCursor()
+        cursor.insertHtml("<pre style='font-family: Consolas;'>")
+        for line in lines_to_show:
+            cursor.insertHtml(line + "<br>")
+        cursor.insertHtml("</pre>")
+        cursor.movePosition(QTextCursor.End)
 
         for card in self.interface_cards:
             card.update_style(selected=(card.name == name))
 
-    def insert_next_line(self):
-        if self.current_line_index < len(self.lines_to_show):
-            self.cursor.insertHtml(self.lines_to_show[self.current_line_index] + "<br>")
-            self.status_box.setTextCursor(self.cursor)
-            self.current_line_index += 1
-        else:
-            self.timer.stop()
-
     def go_to_step2(self):
         if not self.selected_interface:
             self.status_box.clear()
-            self.insert_html_text("⚠️ Please select an interface before proceeding.")
+            self.status_box.setPlainText("⚠️ Please select an interface before proceeding.")
             return
 
         from step02 import Step02Tab
-        step2 = Step02Tab(self.tabs, self.selected_interface, lambda: self.go_to_step3(self.selected_interface))
+        step2 = Step02Tab(self.tabs, self.selected_interface)
         self.tabs.removeTab(0)
         self.tabs.insertTab(0, step2, "Troubleshoot")
         self.tabs.setCurrentIndex(0)
-
-    def go_to_step3(self, selected_interface):
-        from step03 import Step03Tab
-        step3 = Step03Tab(self.tabs, selected_interface, lambda: self.go_to_step2(), self.go_to_step4_placeholder)
-        self.tabs.removeTab(0)
-        self.tabs.insertTab(0, step3, "Troubleshoot")
-        self.tabs.setCurrentIndex(0)
-
-    def go_to_step4_placeholder(self):
-        print("Step 04 is not implemented yet.")
 
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Network Troubleshoot Application")
         self.setMinimumSize(800, 600)
-        self.setStyleSheet(open("style.qss", "r").read())
+        self.setStyleSheet(open("style.qss").read())
 
         layout = QVBoxLayout()
-
         self.tabs = QTabWidget()
-        self.step01_tab = Step01Tab(self.tabs)
-
-        self.tabs.addTab(self.step01_tab, "Troubleshoot")
+        self.tabs.addTab(Step01Tab(self.tabs), "Troubleshoot")
         self.tabs.addTab(QWidget(), "First Network Connections")
         self.tabs.addTab(QWidget(), "Anomaly Notifications")
 
