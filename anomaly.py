@@ -1,42 +1,56 @@
-#anomaly.py
+# anomaly.py
 
 import requests
-import time
+from datetime import datetime
 
-# Optional: store previously alerted IPs/domains to avoid repeating
 _alerted = set()
+ANOMALY_FILE = "anomaly_logs.txt"
 
-# Add your keys here
-ABUSEIPDB_API_KEY = "3856068116967885b54e954f68b6f52940f9efc2bab3b8f1e0a2463a4cb667a6712018d2406a166f" 
-OTX_API_KEY = "ca3dccbe826f52b6a3664cc98167efd2be0c845a007fca34a80ee2e7155d8048"              # Optional for AlienVault
+ABUSEIPDB_API_KEY = "3856068116967885b54e954f68b6f52940f9efc2bab3b8f1e0a2463a4cb667a6712018d2406a166f"
+OTX_API_KEY = "ca3dccbe826f52b6a3664cc98167efd2be0c845a007fca34a80ee2e7155d8048"
 
 # Suspicious indicators
 RARE_COUNTRIES = {"North Korea", "Russia", "Iran", "Belarus"}
 SUSPICIOUS_TLDS = {".xyz", ".top", ".click", ".zip", ".tk", ".ml"}
 SUSPICIOUS_PORTS = {4444, 1337, 8081, 6969, 2222, 9001}
 
+# 🔥 Callback for GUI Step09
+anomaly_callback = None
+
+# === Helpers ===
 def is_ip_only(domain):
     return all(part.isdigit() or part == '.' for part in domain)
 
-def print_alert(msg):
-    print("\n🚨 " + msg + "\n")
+def log_anomaly(message):
+    now = datetime.now().strftime("[%d/%m/%Y %I:%M %p]")
+    final_message = f"{now} {message}"
+    print(final_message)
+
+    try:
+        with open(ANOMALY_FILE, "a", encoding="utf-8") as f:
+            f.write(final_message + "\n")
+    except Exception as e:
+        print(f"Error writing anomaly log: {e}")
+
+    if anomaly_callback:
+        anomaly_callback(final_message)
 
 def check_tld(domain):
     for tld in SUSPICIOUS_TLDS:
         if domain.endswith(tld):
-            print_alert(f"Suspicious Domain: {domain} — flagged due to TLD {tld}")
+            log_anomaly(f"Suspicious Domain Detected: {domain} (TLD {tld})")
 
 def check_country(domain, country):
     if country in RARE_COUNTRIES:
-        print_alert(f"Rare Country Alert: {domain} connected to {country}")
+        log_anomaly(f"Rare Country Connection: {domain} ({country})")
 
 def check_port(domain, port):
     if port in SUSPICIOUS_PORTS:
-        print_alert(f"Suspicious Port: {domain} connected via unusual port {port}")
+        log_anomaly(f"Suspicious Port Usage: {domain} (Port {port})")
 
 def check_ip_only(domain):
     if is_ip_only(domain):
-        print_alert(f"Direct IP Contact: {domain} may be a backdoor/beacon")
+        log_anomaly(f"Direct IP Contact Detected: {domain}")
 
 def check_abuseipdb(ip):
     try:
@@ -47,19 +61,17 @@ def check_abuseipdb(ip):
         data = response.json()
         score = data.get("data", {}).get("abuseConfidenceScore", 0)
         if score >= 60:
-            print_alert(f"Malicious IP: {ip} has AbuseIPDB score {score}")
-    except Exception as e:
-        pass  # fail silently
+            log_anomaly(f"Malicious IP Found: {ip} (Abuse Score {score})")
+    except Exception:
+        pass  # Fail silently
 
+# === Main Entry ===
 def analyze_connection(domain, ip, country, port=None):
-    key = f"{domain}:{ip}"
-    if key in _alerted:
-        return
-    _alerted.add(key)
-
     check_tld(domain)
     check_country(domain, country)
     check_ip_only(domain)
     if port:
         check_port(domain, port)
     check_abuseipdb(ip)
+
+    

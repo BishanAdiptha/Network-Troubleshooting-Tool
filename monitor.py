@@ -1,5 +1,3 @@
-#monitor.py
-
 import pyshark
 from scapy.all import sniff, DNS, DNSQR
 import threading
@@ -10,18 +8,19 @@ import socket
 import os
 import asyncio
 import requests
+
 from anomaly import analyze_connection
-
-
-
 
 # ─── Initialization ───────────────────────────────────────────────
 asyncio.set_event_loop(asyncio.new_event_loop())
 domain_stats = defaultdict(lambda: {"bytes": 0})
 seen_domains = set()
 lock = threading.Lock()
+
 SEEN_FILE = "first_network_connections.txt"
 IPINFO_TOKEN = "d075f74a07df28"
+
+first_connection_callback = None  # For Step08 GUI
 
 # ─── Helpers ───────────────────────────────────────────────────────
 def simplify_domain(d: str) -> str:
@@ -31,15 +30,15 @@ def simplify_domain(d: str) -> str:
 def load_seen_domains():
     if os.path.exists(SEEN_FILE):
         with open(SEEN_FILE, "r") as f:
-            return set(line.strip() for line in f.readlines())
+            return set(line.strip().split('] ')[-1].split(' - ')[0] for line in f.readlines())
     return set()
 
-def save_seen_domain(domain):
-    with open(SEEN_FILE, "a") as f:
-        f.write(domain + "\n")
+def save_seen_domain(domain, country):
+    now = datetime.now().strftime("%d/%m/%Y %I:%M %p")
+    with open(SEEN_FILE, "a", encoding="utf-8") as f:
+        f.write(f"[{now}] {domain} - {country}\n")
 
 def get_country_from_ip(ip):
-    # 1. Try IPInfo
     try:
         import ipinfo
         handler = ipinfo.getHandler(IPINFO_TOKEN)
@@ -50,26 +49,32 @@ def get_country_from_ip(ip):
     except:
         pass
 
-    # 2. Fallback to ip-api
     try:
-        res = requests.get(f"http://ip-api.com/json/{ip}", timeout=2)
+        res = requests.get(f"http://ip-api.com/json/{ip}", timeout=3)
         data = res.json()
         return data.get("country", "Unknown")
     except:
         return "Unknown"
 
 def announce_first_connection(domain, ip):
-    if domain in seen_domains:
-        return
-    seen_domains.add(domain)
-    save_seen_domain(domain)
-
+    global seen_domains
     country = get_country_from_ip(ip)
-    now = datetime.now().strftime("%I:%M %p")
-    print(f"{domain} initiated the first network connection with {country} at {now}")
+    now = datetime.now().strftime("%d/%m/%Y %I:%M %p")
+    output = f"[{now}] {domain} - {country}"
 
-     # 🚨 Call anomaly check here
-    analyze_connection(domain, ip, country, port=None)  # we'll handle port as optional
+    new_connection = domain not in seen_domains
+
+    if new_connection:
+        seen_domains.add(domain)
+        save_seen_domain(domain, country)
+        print(output)
+
+        # Update GUI (First Connection Monitoring)
+        if first_connection_callback:
+            first_connection_callback(output)
+
+    # Always analyze anomalies EVERY TIME
+    analyze_connection(domain, ip, country, port=None)
 
 # ─── Packet Monitors ───────────────────────────────────────────────
 def dns_sniffer(pkt):
@@ -78,7 +83,7 @@ def dns_sniffer(pkt):
             dom = pkt[DNSQR].qname.decode().rstrip('.')
             base = simplify_domain(dom)
             if pkt.haslayer("IP"):
-                dst_ip = pkt["IP"].dst  # ✅ use destination IP
+                dst_ip = pkt["IP"].dst
             else:
                 return
         except:
@@ -97,7 +102,7 @@ def tls_sni_monitor(interface):
             try:
                 sni = pkt.tls.handshake_extensions_server_name
                 base = simplify_domain(sni)
-                dst_ip = pkt.ip.dst  # ✅ use destination IP
+                dst_ip = pkt.ip.dst
             except:
                 continue
             with lock:
@@ -113,7 +118,7 @@ def http_host_monitor(interface):
             try:
                 host = pkt.http.host
                 base = simplify_domain(host)
-                dst_ip = pkt.ip.dst  # ✅ use destination IP
+                dst_ip = pkt.ip.dst
             except:
                 continue
             with lock:
@@ -125,8 +130,6 @@ def http_host_monitor(interface):
 def start_monitoring(interface):
     global seen_domains
     seen_domains = load_seen_domains()
-
-
 
     threading.Thread(target=start_dns_sniff, daemon=True).start()
     threading.Thread(target=tls_sni_monitor, args=(interface,), daemon=True).start()

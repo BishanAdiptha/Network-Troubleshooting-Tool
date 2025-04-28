@@ -1,24 +1,48 @@
 # gui.py
+
 import sys
 import subprocess
 import platform
+import psutil
+import socket
+import threading
+
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QTabWidget, QScrollArea, QFrame,
     QLabel, QTextEdit, QPushButton, QHBoxLayout
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QTextCursor
 
 from main import check_cable_or_wifi_gui
+from step08 import Step08Tab
+from step09 import Step09Tab
+import monitor
+import anomaly
 
+# === Detect Internet Adapter ===
+def detect_internet_adapter():
+    interfaces = psutil.net_if_addrs()
+    stats = psutil.net_if_stats()
+    for interface, addresses in interfaces.items():
+        if not stats.get(interface) or not stats[interface].isup:
+            continue
+        for addr in addresses:
+            if addr.family == socket.AF_INET and not addr.address.startswith('169.') and addr.address != '0.0.0.0':
+                try:
+                    subprocess.check_output(["ping", "-n", "1", "-w", "500", "8.8.8.8"], timeout=2)
+                    return interface
+                except:
+                    pass
+    return None
+
+# === Helpers ===
 def list_interfaces():
     if platform.system() != "Windows":
         return []
-
     result = subprocess.getoutput("netsh interface show interface")
     lines = result.strip().splitlines()[3:]
     interfaces = []
-
     for line in lines:
         parts = line.split()
         if len(parts) >= 4:
@@ -30,6 +54,7 @@ def list_interfaces():
 def check_interface(name):
     return check_cable_or_wifi_gui(name)
 
+# === Interface Card Widget ===
 class InterfaceCard(QFrame):
     def __init__(self, name, state, click_callback):
         super().__init__()
@@ -65,6 +90,7 @@ class InterfaceCard(QFrame):
             self.label_name.setStyleSheet("color: black; font-weight: bold;")
             self.label_status.setStyleSheet(f"color: {color}; font-weight: bold;")
 
+# === Step01 Tab ===
 class Step01Tab(QWidget):
     def __init__(self, tabs):
         super().__init__()
@@ -157,7 +183,7 @@ class Step01Tab(QWidget):
                 if line.strip().startswith(symbol):
                     color = c
                     break
-            safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace(" ", "&nbsp;")
+            safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             lines_to_show.append(f'<span style="color: {color};">{safe_line}</span>')
 
         cursor = self.status_box.textCursor()
@@ -182,6 +208,7 @@ class Step01Tab(QWidget):
         self.tabs.insertTab(0, step2, "Troubleshoot")
         self.tabs.setCurrentIndex(0)
 
+# === Main Window ===
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -191,9 +218,26 @@ class MainWindow(QWidget):
 
         layout = QVBoxLayout()
         self.tabs = QTabWidget()
+
+        # Step01
         self.tabs.addTab(Step01Tab(self.tabs), "Troubleshoot")
-        self.tabs.addTab(QWidget(), "First Network Connections")
-        self.tabs.addTab(QWidget(), "Anomaly Notifications")
+
+        # Auto-detect adapter
+        self.auto_interface = detect_internet_adapter()
+        if self.auto_interface:
+            threading.Thread(target=monitor.start_monitoring, args=(self.auto_interface,), daemon=True).start()
+
+            # Step08 - First Network Connections
+            self.step08 = Step08Tab(self.tabs, self.auto_interface)
+            self.tabs.addTab(self.step08, "First Network Connections")
+
+            # Step09 - Anomaly Notifications
+            self.step09 = Step09Tab(self.tabs)
+            self.tabs.addTab(self.step09, "Anomaly Notifications")
+
+        else:
+            self.tabs.addTab(QWidget(), "First Network Connections")
+            self.tabs.addTab(QWidget(), "Anomaly Notifications")
 
         layout.addWidget(self.tabs)
         self.setLayout(layout)
