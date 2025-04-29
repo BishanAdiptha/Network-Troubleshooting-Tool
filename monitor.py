@@ -1,3 +1,4 @@
+# (Copy from here)
 import pyshark
 from scapy.all import sniff, DNS, DNSQR
 import threading
@@ -8,11 +9,11 @@ import socket
 import os
 import asyncio
 import requests
+import psutil
 
 from anomaly import analyze_connection
 
 # ─── Initialization ───────────────────────────────────────────────
-asyncio.set_event_loop(asyncio.new_event_loop())
 domain_stats = defaultdict(lambda: {"bytes": 0})
 seen_domains = set()
 lock = threading.Lock()
@@ -69,11 +70,9 @@ def announce_first_connection(domain, ip):
         save_seen_domain(domain, country)
         print(output)
 
-        # Update GUI (First Connection Monitoring)
         if first_connection_callback:
             first_connection_callback(output)
 
-    # Always analyze anomalies EVERY TIME
     analyze_connection(domain, ip, country, port=None)
 
 # ─── Packet Monitors ───────────────────────────────────────────────
@@ -82,9 +81,8 @@ def dns_sniffer(pkt):
         try:
             dom = pkt[DNSQR].qname.decode().rstrip('.')
             base = simplify_domain(dom)
-            if pkt.haslayer("IP"):
-                dst_ip = pkt["IP"].dst
-            else:
+            dst_ip = pkt["IP"].dst if pkt.haslayer("IP") else None
+            if not dst_ip:
                 return
         except:
             return
@@ -94,10 +92,10 @@ def dns_sniffer(pkt):
 def start_dns_sniff():
     sniff(filter="udp port 53", prn=dns_sniffer, store=0)
 
-def tls_sni_monitor(interface):
+def run_tls_sni_monitor(iface):
     asyncio.set_event_loop(asyncio.new_event_loop())
     try:
-        cap = pyshark.LiveCapture(interface=interface, display_filter='tls.handshake.extensions_server_name')
+        cap = pyshark.LiveCapture(interface=iface, display_filter='tls.handshake.extensions_server_name')
         for pkt in cap.sniff_continuously():
             try:
                 sni = pkt.tls.handshake_extensions_server_name
@@ -110,10 +108,10 @@ def tls_sni_monitor(interface):
     except Exception as e:
         print(f"[TLS SNI Error] {e}")
 
-def http_host_monitor(interface):
+def run_http_host_monitor(iface):
     asyncio.set_event_loop(asyncio.new_event_loop())
     try:
-        cap = pyshark.LiveCapture(interface=interface, display_filter='http.request')
+        cap = pyshark.LiveCapture(interface=iface, display_filter='http.request')
         for pkt in cap.sniff_continuously():
             try:
                 host = pkt.http.host
@@ -126,17 +124,23 @@ def http_host_monitor(interface):
     except Exception as e:
         print(f"[HTTP Host Error] {e}")
 
-# ─── Main Monitor Launcher ─────────────────────────────────────────
-def start_monitoring(interface):
+# ─── Launcher ──────────────────────────────────────────────────────
+def start_monitoring(selected_interface=None):
     global seen_domains
     seen_domains = load_seen_domains()
 
     threading.Thread(target=start_dns_sniff, daemon=True).start()
-    threading.Thread(target=tls_sni_monitor, args=(interface,), daemon=True).start()
-    threading.Thread(target=http_host_monitor, args=(interface,), daemon=True).start()
+
+    stats = psutil.net_if_stats()
+    interfaces = [iface for iface in stats if stats[iface].isup]
+
+    for iface in interfaces:
+        threading.Thread(target=run_tls_sni_monitor, args=(iface,), daemon=True).start()
+        threading.Thread(target=run_http_host_monitor, args=(iface,), daemon=True).start()
 
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("\n🛑 Monitoring stopped by user.")
+# (Copy until here)

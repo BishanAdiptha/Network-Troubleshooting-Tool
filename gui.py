@@ -1,5 +1,3 @@
-# gui.py
-
 import sys
 import subprocess
 import platform
@@ -9,9 +7,9 @@ import threading
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QTabWidget, QScrollArea, QFrame,
-    QLabel, QTextEdit, QPushButton, QHBoxLayout
+    QLabel, QTextEdit, QPushButton, QHBoxLayout, QToolButton, QMenu, QMessageBox
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QTextCursor
 
 from main import check_cable_or_wifi_gui
@@ -20,7 +18,6 @@ from step09 import Step09Tab
 import monitor
 import anomaly
 
-# === Detect Internet Adapter ===
 def detect_internet_adapter():
     interfaces = psutil.net_if_addrs()
     stats = psutil.net_if_stats()
@@ -36,7 +33,6 @@ def detect_internet_adapter():
                     pass
     return None
 
-# === Helpers ===
 def list_interfaces():
     if platform.system() != "Windows":
         return []
@@ -54,7 +50,6 @@ def list_interfaces():
 def check_interface(name):
     return check_cable_or_wifi_gui(name)
 
-# === Interface Card Widget ===
 class InterfaceCard(QFrame):
     def __init__(self, name, state, click_callback):
         super().__init__()
@@ -90,7 +85,6 @@ class InterfaceCard(QFrame):
             self.label_name.setStyleSheet("color: black; font-weight: bold;")
             self.label_status.setStyleSheet(f"color: {color}; font-weight: bold;")
 
-# === Step01 Tab ===
 class Step01Tab(QWidget):
     def __init__(self, tabs):
         super().__init__()
@@ -208,39 +202,99 @@ class Step01Tab(QWidget):
         self.tabs.insertTab(0, step2, "Troubleshoot")
         self.tabs.setCurrentIndex(0)
 
-# === Main Window ===
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Network Troubleshoot Application")
         self.setMinimumSize(800, 600)
-        self.setStyleSheet(open("style.qss").read())
+
+        try:
+            with open("style.qss") as f:
+                self.setStyleSheet(f.read())
+        except FileNotFoundError:
+            pass
 
         layout = QVBoxLayout()
         self.tabs = QTabWidget()
+        self.tabs.setStyleSheet("QTabWidget::pane { border: none; }")
 
-        # Step01
         self.tabs.addTab(Step01Tab(self.tabs), "Troubleshoot")
 
-        # Auto-detect adapter
-        self.auto_interface = detect_internet_adapter()
-        if self.auto_interface:
-            threading.Thread(target=monitor.start_monitoring, args=(self.auto_interface,), daemon=True).start()
-
-            # Step08 - First Network Connections
-            self.step08 = Step08Tab(self.tabs, self.auto_interface)
-            self.tabs.addTab(self.step08, "First Network Connections")
-
-            # Step09 - Anomaly Notifications
-            self.step09 = Step09Tab(self.tabs)
-            self.tabs.addTab(self.step09, "Anomaly Notifications")
-
+        auto_interface = detect_internet_adapter()
+        if auto_interface:
+            threading.Thread(target=monitor.start_monitoring, args=(auto_interface,), daemon=True).start()
+            self.tabs.addTab(Step08Tab(self.tabs, auto_interface), "First Network Connections")
+            self.tabs.addTab(Step09Tab(self.tabs), "Anomaly Notifications")
         else:
             self.tabs.addTab(QWidget(), "First Network Connections")
             self.tabs.addTab(QWidget(), "Anomaly Notifications")
 
+        # Refresh button (⟳)
+        self.refresh_button = QToolButton()
+        self.refresh_button.setText("⟳")
+        self.refresh_button.setStyleSheet("font-size: 18px; margin-right: 4px;")
+        self.refresh_button.clicked.connect(self.refresh_action)
+
+        # ☰ Menu Button
+        self.menu_button = QToolButton()
+        self.menu_button.setText("☰")
+        self.menu_button.setPopupMode(QToolButton.InstantPopup)
+        self.menu_button.setStyleSheet("font-size: 18px; margin-right: 10px;")
+
+        self.menu = QMenu(self)
+        settings_action = self.menu.addAction("⚙ Settings")
+        help_action = self.menu.addAction("❓ Help")
+        about_action = self.menu.addAction("📄 About")
+        self.menu_button.setMenu(self.menu)
+
+        settings_action.triggered.connect(self.show_settings)
+        help_action.triggered.connect(self.show_help)
+        about_action.triggered.connect(self.show_about)
+
+        # Corner widget container for refresh and menu
+        corner_widget = QWidget()
+        corner_layout = QHBoxLayout(corner_widget)
+        corner_layout.setContentsMargins(0, 0, 0, 0)
+        corner_layout.setSpacing(0)
+        corner_layout.addWidget(self.refresh_button)
+        corner_layout.addWidget(self.menu_button)
+
+        self.tabs.setCornerWidget(corner_widget, Qt.TopRightCorner)
+
         layout.addWidget(self.tabs)
         self.setLayout(layout)
+
+    def refresh_action(self):
+        # Remove and re-add Step01 with refreshed interfaces
+        self.tabs.removeTab(0)
+        self.tabs.insertTab(0, Step01Tab(self.tabs), "Troubleshoot")
+
+        # Re-detect and restart monitoring
+        auto_interface = detect_internet_adapter()
+
+        # Remove old monitoring tabs
+        self.tabs.removeTab(2)  # Anomaly Notifications
+        self.tabs.removeTab(1)  # First Network Connections
+
+        if auto_interface:
+            threading.Thread(target=monitor.start_monitoring, args=(auto_interface,), daemon=True).start()
+            self.tabs.insertTab(1, Step08Tab(self.tabs, auto_interface), "First Network Connections")
+            self.tabs.insertTab(2, Step09Tab(self.tabs), "Anomaly Notifications")
+        else:
+            self.tabs.insertTab(1, QWidget(), "First Network Connections")
+            self.tabs.insertTab(2, QWidget(), "Anomaly Notifications")
+
+        self.tabs.setCurrentIndex(0)
+
+
+    def show_settings(self):
+        QMessageBox.information(self, "Settings", "Settings dialog goes here.")
+
+    def show_help(self):
+        QMessageBox.information(self, "Help", "Help dialog goes here.\n\nFor support, visit our website.")
+
+    def show_about(self):
+        QMessageBox.about(self, "About", "Network Troubleshoot Application\nVersion 1.0\n© 2025 Your Name")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
