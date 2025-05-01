@@ -1,11 +1,9 @@
-# step09.py
-
 import anomaly
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QLabel
 from PySide6.QtCore import Qt, Signal
 
 class Step09Tab(QWidget):
-    new_anomaly_signal = Signal(str)  # Create a signal to safely update GUI from threads
+    new_anomaly_signal = Signal(str)
 
     def __init__(self, tabs):
         super().__init__()
@@ -39,14 +37,13 @@ class Step09Tab(QWidget):
         layout.addWidget(self.text_box)
 
         self.setLayout(layout)
-
-        self.text_box.setPlainText("🔍 Waiting for anomaly detections...")
         self.first_anomaly_received = False
+        self.text_box.setPlainText("\ud83d\udd0d Waiting for anomaly detections...")
 
-        # Connect the signal to the function
+        # Connect signal to GUI-safe method
         self.new_anomaly_signal.connect(self.display_anomaly)
 
-        # Assign our safe function to anomaly.py
+        # Register callback to anomaly module
         anomaly.anomaly_callback = self.safe_display_anomaly
 
     def safe_display_anomaly(self, text):

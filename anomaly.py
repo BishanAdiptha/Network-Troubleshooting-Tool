@@ -1,34 +1,24 @@
-# anomaly.py
+# ============================== anomaly.py ==============================
 
 import requests
 from datetime import datetime
 
-_alerted = set()
+anomaly_callback = None
+
 ANOMALY_FILE = "anomaly_logs.txt"
-
 ABUSEIPDB_API_KEY = "3856068116967885b54e954f68b6f52940f9efc2bab3b8f1e0a2463a4cb667a6712018d2406a166f"
-OTX_API_KEY = "ca3dccbe826f52b6a3664cc98167efd2be0c845a007fca34a80ee2e7155d8048"
 
-# Suspicious indicators
 RARE_COUNTRIES = {"North Korea", "Russia", "Iran", "Belarus"}
 SUSPICIOUS_TLDS = {".xyz", ".top", ".click", ".zip", ".tk", ".ml"}
 SUSPICIOUS_PORTS = {4444, 1337, 8081, 6969, 2222, 9001}
 
-# 🔥 Callback for GUI Step09
-anomaly_callback = None
-
-
-
-
-
-# === Helpers ===
 def is_ip_only(domain):
     return all(part.isdigit() or part == '.' for part in domain)
 
 def log_anomaly(message):
     now = datetime.now().strftime("[%d/%m/%Y %I:%M %p]")
     final_message = f"{now} {message}"
-    print(final_message)
+    print("[DEBUG] Anomaly Logged:", final_message)
 
     try:
         with open(ANOMALY_FILE, "a", encoding="utf-8") as f:
@@ -67,15 +57,12 @@ def check_abuseipdb(ip):
         if score >= 60:
             log_anomaly(f"Malicious IP Found: {ip} (Abuse Score {score})")
     except Exception:
-        pass  # Fail silently
+        pass
 
-# === Main Entry ===
 def analyze_connection(domain, ip, country, port=None):
+    check_ip_only(domain)
     check_tld(domain)
     check_country(domain, country)
-    check_ip_only(domain)
     if port:
         check_port(domain, port)
     check_abuseipdb(ip)
-
-    
