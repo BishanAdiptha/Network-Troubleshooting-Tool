@@ -4,10 +4,12 @@ import platform
 import psutil
 import socket
 import threading
+import shutil
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QTabWidget, QScrollArea, QFrame,
-    QLabel, QTextEdit, QPushButton, QHBoxLayout, QToolButton, QMenu, QMessageBox
+    QLabel, QTextEdit, QPushButton, QHBoxLayout, QToolButton, QMenu,
+    QMessageBox, QFileDialog, QDialog
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QTextCursor
@@ -17,6 +19,7 @@ from step08 import Step08Tab
 from step09 import Step09Tab
 import monitor
 import anomaly
+
 
 def detect_internet_adapter():
     interfaces = psutil.net_if_addrs()
@@ -33,6 +36,7 @@ def detect_internet_adapter():
                     pass
     return None
 
+
 def list_interfaces():
     if platform.system() != "Windows":
         return []
@@ -47,8 +51,10 @@ def list_interfaces():
             interfaces.append((name, state))
     return interfaces
 
+
 def check_interface(name):
     return check_cable_or_wifi_gui(name)
+
 
 class InterfaceCard(QFrame):
     def __init__(self, name, state, click_callback):
@@ -84,6 +90,7 @@ class InterfaceCard(QFrame):
             self.setStyleSheet(f"QFrame#interfaceCard {{ border: 2px solid {color}; background: white; border-radius: 8px; padding: 10px; }}")
             self.label_name.setStyleSheet("color: black; font-weight: bold;")
             self.label_status.setStyleSheet(f"color: {color}; font-weight: bold;")
+
 
 class Step01Tab(QWidget):
     def __init__(self, tabs):
@@ -163,8 +170,8 @@ class Step01Tab(QWidget):
             text += "\n\n📋 Additional Physical Checks:\n\n" + "\n".join(guidance)
 
         self.selected_interface = name
-
         self.status_box.clear()
+
         lines_to_show = []
         color_mapping = {
             "✅": "limegreen", "⚠️": "orange", "❌": "red",
@@ -202,6 +209,7 @@ class Step01Tab(QWidget):
         self.tabs.insertTab(0, step2, "Troubleshoot")
         self.tabs.setCurrentIndex(0)
 
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -217,7 +225,6 @@ class MainWindow(QWidget):
         layout = QVBoxLayout()
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet("QTabWidget::pane { border: none; }")
-
         self.tabs.addTab(Step01Tab(self.tabs), "Troubleshoot")
 
         auto_interface = detect_internet_adapter()
@@ -229,53 +236,53 @@ class MainWindow(QWidget):
             self.tabs.addTab(QWidget(), "First Network Connections")
             self.tabs.addTab(QWidget(), "Anomaly Notifications")
 
-        # Refresh button (⟳)
         self.refresh_button = QToolButton()
         self.refresh_button.setText("⟳")
         self.refresh_button.setStyleSheet("font-size: 18px; margin-right: 4px;")
         self.refresh_button.clicked.connect(self.refresh_action)
 
-        # ☰ Menu Button
         self.menu_button = QToolButton()
         self.menu_button.setText("☰")
         self.menu_button.setPopupMode(QToolButton.InstantPopup)
         self.menu_button.setStyleSheet("font-size: 18px; margin-right: 10px;")
 
         self.menu = QMenu(self)
-        settings_action = self.menu.addAction("⚙ Settings")
-        help_action = self.menu.addAction("❓ Help")
-        about_action = self.menu.addAction("📄 About")
+        self.menu.setStyleSheet("""
+            QMenu::item {
+                padding: 6px 20px;
+            }
+            QMenu::item:selected {
+                background-color: #0078d7;
+                color: white;
+            }
+        """)
+
+        self.menu.addAction("⚙ Settings", self.show_settings)
+        self.menu.addAction("💾 Save Anomaly Logs", self.save_anomaly_logs)
+        self.menu.addAction("💾 Save Network Connections", self.save_network_connections)
+        self.menu.addAction("❓ Help", self.show_help)
+        self.menu.addAction("📄 About", self.show_about)
         self.menu_button.setMenu(self.menu)
 
-        settings_action.triggered.connect(self.show_settings)
-        help_action.triggered.connect(self.show_help)
-        about_action.triggered.connect(self.show_about)
-
-        # Corner widget container for refresh and menu
         corner_widget = QWidget()
         corner_layout = QHBoxLayout(corner_widget)
         corner_layout.setContentsMargins(0, 0, 0, 0)
         corner_layout.setSpacing(0)
         corner_layout.addWidget(self.refresh_button)
         corner_layout.addWidget(self.menu_button)
-
         self.tabs.setCornerWidget(corner_widget, Qt.TopRightCorner)
 
         layout.addWidget(self.tabs)
         self.setLayout(layout)
 
     def refresh_action(self):
-        # Remove and re-add Step01 with refreshed interfaces
         self.tabs.removeTab(0)
         self.tabs.insertTab(0, Step01Tab(self.tabs), "Troubleshoot")
 
-        # Re-detect and restart monitoring
+        self.tabs.removeTab(2)
+        self.tabs.removeTab(1)
+
         auto_interface = detect_internet_adapter()
-
-        # Remove old monitoring tabs
-        self.tabs.removeTab(2)  # Anomaly Notifications
-        self.tabs.removeTab(1)  # First Network Connections
-
         if auto_interface:
             threading.Thread(target=monitor.start_monitoring, args=(auto_interface,), daemon=True).start()
             self.tabs.insertTab(1, Step08Tab(self.tabs, auto_interface), "First Network Connections")
@@ -286,15 +293,52 @@ class MainWindow(QWidget):
 
         self.tabs.setCurrentIndex(0)
 
+    def save_anomaly_logs(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Anomaly Logs", "anomaly_logs.txt", "Text Files (*.txt)")
+        if file_path:
+            shutil.copyfile("anomaly_logs.txt", file_path)
+
+    def save_network_connections(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Network Connections", "first_network_connections.txt", "Text Files (*.txt)")
+        if file_path:
+            shutil.copyfile("first_network_connections.txt", file_path)
 
     def show_settings(self):
-        QMessageBox.information(self, "Settings", "Settings dialog goes here.")
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Settings")
+        dialog.setMinimumWidth(300)
+
+        layout = QHBoxLayout(dialog)
+
+        clear_anomaly_btn = QPushButton("🧹 Clear Anomaly Logs")
+        clear_anomaly_btn.setStyleSheet("QPushButton:hover { background-color: #f08080; }")
+        clear_anomaly_btn.clicked.connect(lambda: open("anomaly_logs.txt", "w").close())
+
+        clear_network_btn = QPushButton("🧹 Clear Network Connections")
+        clear_network_btn.setStyleSheet("QPushButton:hover { background-color: #f08080; }")
+        clear_network_btn.clicked.connect(lambda: open("first_network_connections.txt", "w").close())
+
+        layout.addWidget(clear_anomaly_btn)
+        layout.addWidget(clear_network_btn)
+        dialog.setLayout(layout)
+        dialog.exec()
 
     def show_help(self):
-        QMessageBox.information(self, "Help", "Help dialog goes here.\n\nFor support, visit our website.")
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Help")
+        msg.setTextFormat(Qt.RichText)
+        msg.setText(
+            'For support, contact the developer through <a href="https://www.linkedin.com/in/bishan-ranamuka-18aa4726b" style="color:#007bff;">LinkedIn</a>.'
+        )
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setStyleSheet("QLabel { color: black; font-size: 14px; }")
+        msg.setIcon(QMessageBox.Information)
+        msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        msg.exec()
 
     def show_about(self):
-        QMessageBox.about(self, "About", "Network Troubleshoot Application\nVersion 1.0\n© 2025 Your Name")
+        QMessageBox.about(self, "About", "Network Troubleshoot Application\nVersion 1.0\n© 2025 Bishan Adiptha")
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

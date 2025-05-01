@@ -17,6 +17,10 @@ SUSPICIOUS_PORTS = {4444, 1337, 8081, 6969, 2222, 9001}
 # 🔥 Callback for GUI Step09
 anomaly_callback = None
 
+
+
+
+
 # === Helpers ===
 def is_ip_only(domain):
     return all(part.isdigit() or part == '.' for part in domain)
