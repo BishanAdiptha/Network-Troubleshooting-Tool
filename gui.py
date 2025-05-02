@@ -1,4 +1,4 @@
-#gui.py
+# gui.py
 
 import sys
 import subprocess
@@ -20,7 +20,7 @@ from main import check_cable_or_wifi_gui
 from step08 import Step08Tab
 from step09 import Step09Tab
 import monitor
-import anomaly
+import anomaly  # ✅ Needed to start anomaly monitor
 
 
 def detect_internet_adapter():
@@ -232,12 +232,14 @@ class MainWindow(QWidget):
         auto_interface = detect_internet_adapter()
         if auto_interface:
             threading.Thread(target=monitor.start_monitoring, args=(auto_interface,), daemon=True).start()
+            threading.Thread(target=anomaly.start_anomaly_monitoring, daemon=True).start()  # ✅ FIXED: Start anomaly monitoring
             self.tabs.addTab(Step08Tab(self.tabs, auto_interface), "First Network Connections")
             self.tabs.addTab(Step09Tab(self.tabs), "Anomaly Notifications")
         else:
             self.tabs.addTab(QWidget(), "First Network Connections")
             self.tabs.addTab(QWidget(), "Anomaly Notifications")
 
+        # Top-right ☰ menu + refresh
         self.refresh_button = QToolButton()
         self.refresh_button.setText("⟳")
         self.refresh_button.setStyleSheet("font-size: 18px; margin-right: 4px;")
@@ -258,7 +260,6 @@ class MainWindow(QWidget):
                 color: white;
             }
         """)
-
         self.menu.addAction("⚙ Settings", self.show_settings)
         self.menu.addAction("💾 Save Anomaly Logs", self.save_anomaly_logs)
         self.menu.addAction("💾 Save Network Connections", self.save_network_connections)
@@ -287,6 +288,7 @@ class MainWindow(QWidget):
         auto_interface = detect_internet_adapter()
         if auto_interface:
             threading.Thread(target=monitor.start_monitoring, args=(auto_interface,), daemon=True).start()
+            threading.Thread(target=anomaly.start_anomaly_monitoring, daemon=True).start()
             self.tabs.insertTab(1, Step08Tab(self.tabs, auto_interface), "First Network Connections")
             self.tabs.insertTab(2, Step09Tab(self.tabs), "Anomaly Notifications")
         else:

@@ -1,13 +1,13 @@
+#step09.py
 import anomaly
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QLabel
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer
 
 class Step09Tab(QWidget):
-    new_anomaly_signal = Signal(str)
-
     def __init__(self, tabs):
         super().__init__()
         self.tabs = tabs
+        self.first_anomaly_received = False
 
         layout = QVBoxLayout()
 
@@ -35,19 +35,18 @@ class Step09Tab(QWidget):
             }
         """)
         layout.addWidget(self.text_box)
-
         self.setLayout(layout)
-        self.first_anomaly_received = False
-        self.text_box.setPlainText("\ud83d\udd0d Waiting for anomaly detections...")
 
-        # Connect signal to GUI-safe method
-        self.new_anomaly_signal.connect(self.display_anomaly)
+        self.text_box.setPlainText("🔍 Waiting for anomaly detections...")
 
-        # Register callback to anomaly module
-        anomaly.anomaly_callback = self.safe_display_anomaly
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.poll_anomaly_queue)
+        self.timer.start(500)
 
-    def safe_display_anomaly(self, text):
-        self.new_anomaly_signal.emit(text)
+    def poll_anomaly_queue(self):
+        while not anomaly.anomaly_queue.empty():
+            message = anomaly.anomaly_queue.get()
+            self.display_anomaly(message)
 
     def display_anomaly(self, text):
         if not self.first_anomaly_received:

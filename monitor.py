@@ -1,5 +1,3 @@
-# ============================== monitor.py ==============================
-
 import pyshark
 from scapy.all import sniff, DNS, DNSQR
 import threading
@@ -8,21 +6,18 @@ from datetime import datetime
 from collections import defaultdict
 import socket
 import os
-import requests
 import psutil
 import asyncio
 
-from anomaly import analyze_connection
-
+# === Logging setup ===
+ALL_DOMAINS_FILE = "all_domains.log"
+SEEN_FILE = "first_network_connections.txt"
+ip_country_cache = {}
 domain_stats = defaultdict(lambda: {"bytes": 0})
 seen_domains = set()
 lock = threading.Lock()
-ip_country_cache = {}
 
-SEEN_FILE = "first_network_connections.txt"
-IPINFO_TOKEN = "d075f74a07df28"
-
-first_connection_callback = None  # For GUI
+first_connection_callback = None  # GUI callback
 
 def simplify_domain(d: str) -> str:
     parts = d.strip('.').split('.')
@@ -39,12 +34,17 @@ def save_seen_domain(domain, country):
     with open(SEEN_FILE, "a", encoding="utf-8") as f:
         f.write(f"[{now}] {domain} - {country}\n")
 
+def append_to_all_domains(domain, ip):
+    now = datetime.now().strftime("%d/%m/%Y %I:%M %p")
+    with open(ALL_DOMAINS_FILE, "a", encoding="utf-8") as f:
+        f.write(f"[{now}] {domain} {ip}\n")
+
 def get_country_from_ip(ip):
     if ip in ip_country_cache:
         return ip_country_cache[ip]
     try:
         import ipinfo
-        handler = ipinfo.getHandler(IPINFO_TOKEN)
+        handler = ipinfo.getHandler("d075f74a07df28")
         details = handler.getDetails(ip)
         country = details.country_name or details.country
         if country and country.lower() != "unknown":
@@ -53,6 +53,7 @@ def get_country_from_ip(ip):
     except:
         pass
     try:
+        import requests
         res = requests.get(f"http://ip-api.com/json/{ip}", timeout=2)
         data = res.json()
         country = data.get("country", "Unknown")
@@ -76,9 +77,7 @@ def announce_first_connection(domain, ip):
     now = datetime.now().strftime("%d/%m/%Y %I:%M %p")
     country = get_country_from_ip(ip)
     output = f"[{now}] {domain} - {country}"
-
-    # Always analyze suspicious behavior
-    analyze_connection(domain, ip, country, port=None)
+    append_to_all_domains(domain, ip)
 
     with lock:
         if domain in seen_domains:
@@ -94,13 +93,12 @@ def dns_sniffer(pkt):
     if pkt.haslayer(DNS) and pkt.getlayer(DNS).qr == 0:
         try:
             dom = pkt[DNSQR].qname.decode().rstrip('.')
-            base = simplify_domain(dom)
             dst_ip = pkt["IP"].dst if pkt.haslayer("IP") else None
             if not dst_ip:
                 return
+            announce_first_connection(dom, dst_ip)  # ✅ use full domain here
         except:
             return
-        announce_first_connection(base, dst_ip)
 
 def start_dns_sniff():
     while True:
@@ -119,9 +117,8 @@ def run_tls_sni_monitor(interface):
             for pkt in cap.sniff_continuously():
                 try:
                     sni = pkt.tls.handshake_extensions_server_name
-                    base = simplify_domain(sni)
                     dst_ip = pkt.ip.dst
-                    announce_first_connection(base, dst_ip)
+                    announce_first_connection(sni, dst_ip)  # ✅ full SNI
                 except Exception:
                     continue
         except Exception as e:
@@ -137,9 +134,8 @@ def run_http_host_monitor(interface):
             for pkt in cap.sniff_continuously():
                 try:
                     host = pkt.http.host
-                    base = simplify_domain(host)
                     dst_ip = pkt.ip.dst
-                    announce_first_connection(base, dst_ip)
+                    announce_first_connection(host, dst_ip)  # ✅ full Host
                 except Exception:
                     continue
         except Exception as e:
