@@ -9,7 +9,6 @@ import os
 import psutil
 import asyncio
 
-# === Logging setup ===
 ALL_DOMAINS_FILE = "all_domains.log"
 SEEN_FILE = "first_network_connections.txt"
 ip_country_cache = {}
@@ -74,9 +73,22 @@ def announce_first_connection(domain, ip):
     if is_ip_address(domain) or domain == ip:
         return
 
+    domain_lower = domain.lower()
+
+    # ✅ Filter out specific internal/log-cluttering domains
+    excluded_domains = [
+        "in-addr.arpa",
+        "api.abuseipdb.com",
+        "ipinfo.io",
+        "mobile.events.data.microsoft.com"
+    ]
+    if any(domain_lower.endswith(excl) or domain_lower == excl for excl in excluded_domains):
+        return
+
     now = datetime.now().strftime("%d/%m/%Y %I:%M %p")
     country = get_country_from_ip(ip)
     output = f"[{now}] {domain} - {country}"
+
     append_to_all_domains(domain, ip)
 
     with lock:
@@ -93,12 +105,11 @@ def dns_sniffer(pkt):
     if pkt.haslayer(DNS) and pkt.getlayer(DNS).qr == 0:
         try:
             dom = pkt[DNSQR].qname.decode().rstrip('.')
-            dst_ip = pkt["IP"].dst if pkt.haslayer("IP") else None
-            if not dst_ip:
-                return
-            announce_first_connection(dom, dst_ip)  # ✅ use full domain here
-        except:
-            return
+            dst_ip = pkt["IP"].dst if pkt.haslayer("IP") else "0.0.0.0"  # Fallback for unknown
+            announce_first_connection(dom, dst_ip)
+        except Exception as e:
+            print("[DNS SNIF ERROR]", e)
+
 
 def start_dns_sniff():
     while True:
@@ -118,7 +129,7 @@ def run_tls_sni_monitor(interface):
                 try:
                     sni = pkt.tls.handshake_extensions_server_name
                     dst_ip = pkt.ip.dst
-                    announce_first_connection(sni, dst_ip)  # ✅ full SNI
+                    announce_first_connection(sni, dst_ip)
                 except Exception:
                     continue
         except Exception as e:
@@ -135,7 +146,7 @@ def run_http_host_monitor(interface):
                 try:
                     host = pkt.http.host
                     dst_ip = pkt.ip.dst
-                    announce_first_connection(host, dst_ip)  # ✅ full Host
+                    announce_first_connection(host, dst_ip)
                 except Exception:
                     continue
         except Exception as e:
@@ -155,6 +166,7 @@ def get_windows_interfaces():
     return interfaces
 
 monitored_ifaces = set()
+
 def monitor_new_interfaces():
     global monitored_ifaces
     while True:

@@ -312,20 +312,31 @@ class MainWindow(QWidget):
         dialog.setWindowTitle("Settings")
         dialog.setMinimumWidth(300)
 
-        layout = QHBoxLayout(dialog)
+        layout = QVBoxLayout(dialog)  # 🟢 Changed to vertical layout
 
+        # 🧹 Clear Anomaly Logs
         clear_anomaly_btn = QPushButton("🧹 Clear Anomaly Logs")
         clear_anomaly_btn.setStyleSheet("QPushButton:hover { background-color: #f08080; }")
         clear_anomaly_btn.clicked.connect(lambda: open("anomaly_logs.txt", "w").close())
 
+        # 🧹 Clear First Network Connections
         clear_network_btn = QPushButton("🧹 Clear Network Connections")
         clear_network_btn.setStyleSheet("QPushButton:hover { background-color: #f08080; }")
         clear_network_btn.clicked.connect(lambda: open("first_network_connections.txt", "w").close())
 
+        # 🧹 Clear Domain Cache (all_domains.log)
+        clear_cache_btn = QPushButton("🧹 Clear Domain Cache")
+        clear_cache_btn.setStyleSheet("QPushButton:hover { background-color: #f08080; }")
+        clear_cache_btn.clicked.connect(lambda: open("all_domains.log", "w").close())
+
         layout.addWidget(clear_anomaly_btn)
         layout.addWidget(clear_network_btn)
+        layout.addWidget(clear_cache_btn)
+
         dialog.setLayout(layout)
         dialog.exec()
+
+
 
     def show_help(self):
         msg = QMessageBox(self)

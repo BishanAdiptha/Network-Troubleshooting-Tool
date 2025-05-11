@@ -1,13 +1,11 @@
-#anomaly.py
-
 import time
 import statistics
 from datetime import datetime
 from collections import defaultdict
 from queue import Queue
 import requests
+import math
 
-# === Public interfaces ===
 anomaly_queue = Queue()
 
 # === Config ===
@@ -19,13 +17,16 @@ RARE_COUNTRIES = {"North Korea", "Russia", "Iran", "Belarus"}
 SUSPICIOUS_TLDS = {".xyz", ".top", ".click", ".zip", ".rest"}
 SUSPICIOUS_PORTS = {4444, 1337, 8081, 6969, 2222, 9001}
 
+# === Beaconing Detection ===
 BEACON_THRESHOLD = 3
 BEACON_VARIANCE_MS = 1500
 BEACON_MIN_INTERVAL = 5
 BEACON_MAX_INTERVAL = 10
+BEACON_COOLDOWN = 300  # seconds
 
 beaconing_history = defaultdict(list)
-already_logged = set()  # Avoid duplicate logs in file, but still show in UI
+last_beacon_log_time = {}
+already_logged = set()
 
 def is_ip_only(domain):
     return all(part.isdigit() or part == '.' for part in domain.split('.'))
@@ -33,7 +34,6 @@ def is_ip_only(domain):
 def log_anomaly(message):
     now = datetime.now().strftime("[%d/%m/%Y %I:%M %p]")
     final_message = f"{now} {message}"
-
     if final_message not in already_logged:
         try:
             with open(ANOMALY_FILE, "a", encoding="utf-8") as f:
@@ -41,7 +41,6 @@ def log_anomaly(message):
         except Exception as e:
             print("[ERROR] Writing to log failed:", e)
         already_logged.add(final_message)
-
     anomaly_queue.put(final_message)
 
 def check_tld(domain):
@@ -66,7 +65,6 @@ def check_abuseipdb(ip):
         }
         response = requests.get(url, headers=headers, timeout=5)
         data = response.json()
-
         if data.get("data", {}).get("abuseConfidenceScore", 0) >= 50:
             score = data["data"]["abuseConfidenceScore"]
             log_anomaly(f"⚠️ AbuseIPDB: Malicious IP Detected: {ip} (Score: {score}%)")
@@ -74,6 +72,11 @@ def check_abuseipdb(ip):
         print(f"[ERROR] AbuseIPDB check failed: {e}")
 
 def check_beaconing(domain):
+    now = time.time()
+    if domain in last_beacon_log_time:
+        if now - last_beacon_log_time[domain] < BEACON_COOLDOWN:
+            return
+
     timestamps = beaconing_history[domain]
     if len(timestamps) < BEACON_THRESHOLD:
         return
@@ -82,9 +85,28 @@ def check_beaconing(domain):
     interval_mean = statistics.mean(intervals)
     interval_stdev_ms = statistics.stdev(intervals) * 1000 if len(intervals) > 1 else 0
 
-    if BEACON_MIN_INTERVAL <= interval_mean <= BEACON_MAX_INTERVAL:
-        if interval_stdev_ms < BEACON_VARIANCE_MS:
-            log_anomaly(f"⚠️ Possible Beaconing Detected: {domain} (Interval ≈ {interval_mean:.1f}s, Stdev: {interval_stdev_ms:.0f}ms)")
+    if BEACON_MIN_INTERVAL <= interval_mean <= BEACON_MAX_INTERVAL and interval_stdev_ms < BEACON_VARIANCE_MS:
+        log_anomaly(f"⚠️ Possible Beaconing Detected: {domain} (Interval ≈ {interval_mean:.1f}s, Stdev: {interval_stdev_ms:.0f}ms)")
+        last_beacon_log_time[domain] = now
+
+def shannon_entropy(data):
+    if not data:
+        return 0
+    length = len(data)
+    entropy = 0
+    for x in set(data):
+        p_x = data.count(x) / length
+        entropy -= p_x * math.log2(p_x)
+    return entropy
+
+def check_dns_tunneling(domain):
+    if len(domain) <= 50:
+        return
+    entropy = shannon_entropy(domain)
+    if entropy > 2.5:
+        log_anomaly(f"⚠️ Possible DNS Tunneling Detected: {domain} (Length: {len(domain)}, Entropy: {entropy:.2f})")
+    else:
+        log_anomaly(f"⚠️ Suspiciously Long Subdomain Detected: {domain} (Length: {len(domain)}, Entropy: {entropy:.2f})")
 
 def parse_log_line(line):
     try:
@@ -103,6 +125,8 @@ def analyze_connection(domain, ip, country=None, port=None):
     if port:
         check_port(domain, port)
     check_abuseipdb(ip)
+    check_dns_tunneling(domain)
+    beaconing_history[domain].append(time.time())
     check_beaconing(domain)
 
 def start_anomaly_monitoring():
@@ -115,12 +139,9 @@ def start_anomaly_monitoring():
                 if not line:
                     time.sleep(0.5)
                     continue
-
                 domain, ip = parse_log_line(line)
                 if not domain or not ip:
                     continue
-
-                beaconing_history[domain].append(time.time())
                 analyze_connection(domain, ip)
     except KeyboardInterrupt:
         print("🛑 Anomaly monitoring stopped by user.")
