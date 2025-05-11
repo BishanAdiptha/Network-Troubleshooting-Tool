@@ -15,18 +15,24 @@ ABUSEIPDB_API_KEY = "3856068116967885b54e954f68b6f52940f9efc2bab3b8f1e0a2463a4cb
 
 RARE_COUNTRIES = {"North Korea", "Russia", "Iran", "Belarus"}
 SUSPICIOUS_TLDS = {".xyz", ".top", ".click", ".zip", ".rest"}
-SUSPICIOUS_PORTS = {4444, 1337, 8081, 6969, 2222, 9001}
+SUSPICIOUS_PORTS = {4444, 1337, 8081, 6969, 2222, 9001,}
 
 # === Beaconing Detection ===
 BEACON_THRESHOLD = 3
 BEACON_VARIANCE_MS = 1500
 BEACON_MIN_INTERVAL = 5
 BEACON_MAX_INTERVAL = 10
-BEACON_COOLDOWN = 300  # seconds
+BEACON_COOLDOWN = 60  # seconds
 
 beaconing_history = defaultdict(list)
 last_beacon_log_time = {}
 already_logged = set()
+
+# === Traffic Spike Detection ===
+TRAFFIC_SPIKE_WINDOW = 10  # seconds
+TRAFFIC_SPIKE_THRESHOLD = 50  # number of requests in window
+traffic_history = defaultdict(list)
+last_spike_log_time = {}
 
 def is_ip_only(domain):
     return all(part.isdigit() or part == '.' for part in domain.split('.'))
@@ -34,6 +40,9 @@ def is_ip_only(domain):
 def log_anomaly(message):
     now = datetime.now().strftime("[%d/%m/%Y %I:%M %p]")
     final_message = f"{now} {message}"
+
+    anomaly_queue.put(final_message)
+
     if final_message not in already_logged:
         try:
             with open(ANOMALY_FILE, "a", encoding="utf-8") as f:
@@ -41,7 +50,6 @@ def log_anomaly(message):
         except Exception as e:
             print("[ERROR] Writing to log failed:", e)
         already_logged.add(final_message)
-    anomaly_queue.put(final_message)
 
 def check_tld(domain):
     tld = "." + domain.split(".")[-1].lower()
@@ -108,6 +116,31 @@ def check_dns_tunneling(domain):
     else:
         log_anomaly(f"⚠️ Suspiciously Long Subdomain Detected: {domain} (Length: {len(domain)}, Entropy: {entropy:.2f})")
 
+def check_traffic_spike(domain):
+    now = time.time()
+    traffic_history[domain].append(now)
+    traffic_history[domain] = [t for t in traffic_history[domain] if now - t <= TRAFFIC_SPIKE_WINDOW]
+
+    print(f"[DEBUG] Spike check: {domain} has {len(traffic_history[domain])} hits")
+
+    if len(traffic_history[domain]) >= TRAFFIC_SPIKE_THRESHOLD:
+        if domain in last_spike_log_time and (now - last_spike_log_time[domain] < 60):
+            return
+        log_anomaly(f"⚠️ Traffic Spike Detected: {domain} had {len(traffic_history[domain])} requests in {TRAFFIC_SPIKE_WINDOW}s")
+        last_spike_log_time[domain] = now
+
+def check_http_usage(domain, port=None, protocol=None):
+    if protocol == "http":
+        log_anomaly(f"⚠️ Unencrypted HTTP detected to {domain}")
+
+        # TLDs with HTTP
+        tld = "." + domain.split(".")[-1].lower()
+        if tld in SUSPICIOUS_TLDS:
+            log_anomaly(f"⚠️ HTTP used with suspicious TLD: {domain}")
+
+    if protocol == "https" and port in {8080, 8443, 4443}:
+        log_anomaly(f"⚠️ Suspicious HTTPS port used for {domain}: port {port}")
+
 def parse_log_line(line):
     try:
         right = line.strip().split("] ")[-1]
@@ -116,7 +149,7 @@ def parse_log_line(line):
     except:
         return None, None
 
-def analyze_connection(domain, ip, country=None, port=None):
+def analyze_connection(domain, ip, country=None, port=None, protocol=None):
     if is_ip_only(domain):
         return
     check_tld(domain)
@@ -128,9 +161,12 @@ def analyze_connection(domain, ip, country=None, port=None):
     check_dns_tunneling(domain)
     beaconing_history[domain].append(time.time())
     check_beaconing(domain)
+    check_traffic_spike(domain)
+    check_http_usage(domain, port, protocol)
 
 def start_anomaly_monitoring():
     print("🔍 Anomaly monitor started...")
+
     try:
         with open(ALL_DOMAINS_FILE, "r", encoding="utf-8") as f:
             f.seek(0, 2)
@@ -142,6 +178,7 @@ def start_anomaly_monitoring():
                 domain, ip = parse_log_line(line)
                 if not domain or not ip:
                     continue
+                # For now, protocol and port are unknown unless passed from monitor.py
                 analyze_connection(domain, ip)
     except KeyboardInterrupt:
         print("🛑 Anomaly monitoring stopped by user.")

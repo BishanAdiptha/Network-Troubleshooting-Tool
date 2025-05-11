@@ -8,6 +8,7 @@ import socket
 import os
 import psutil
 import asyncio
+import anomaly  # ✅ Required for direct analyze_connection call
 
 ALL_DOMAINS_FILE = "all_domains.log"
 SEEN_FILE = "first_network_connections.txt"
@@ -75,7 +76,6 @@ def announce_first_connection(domain, ip):
 
     domain_lower = domain.lower()
 
-    # ✅ Filter out specific internal/log-cluttering domains
     excluded_domains = [
         "in-addr.arpa",
         "api.abuseipdb.com",
@@ -105,11 +105,10 @@ def dns_sniffer(pkt):
     if pkt.haslayer(DNS) and pkt.getlayer(DNS).qr == 0:
         try:
             dom = pkt[DNSQR].qname.decode().rstrip('.')
-            dst_ip = pkt["IP"].dst if pkt.haslayer("IP") else "0.0.0.0"  # Fallback for unknown
+            dst_ip = pkt["IP"].dst if pkt.haslayer("IP") else "0.0.0.0"
             announce_first_connection(dom, dst_ip)
         except Exception as e:
             print("[DNS SNIF ERROR]", e)
-
 
 def start_dns_sniff():
     while True:
@@ -129,7 +128,9 @@ def run_tls_sni_monitor(interface):
                 try:
                     sni = pkt.tls.handshake_extensions_server_name
                     dst_ip = pkt.ip.dst
+                    dst_port = int(pkt.tcp.dstport)
                     announce_first_connection(sni, dst_ip)
+                    anomaly.analyze_connection(sni, dst_ip, port=dst_port, protocol="https")  # ✅ Real protocol + port
                 except Exception:
                     continue
         except Exception as e:
@@ -146,7 +147,9 @@ def run_http_host_monitor(interface):
                 try:
                     host = pkt.http.host
                     dst_ip = pkt.ip.dst
+                    dst_port = int(pkt.tcp.dstport)
                     announce_first_connection(host, dst_ip)
+                    anomaly.analyze_connection(host, dst_ip, port=dst_port, protocol="http")  # ✅ Real protocol + port
                 except Exception:
                     continue
         except Exception as e:
