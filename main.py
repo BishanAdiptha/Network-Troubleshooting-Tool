@@ -1,76 +1,50 @@
-#main.py
-
 import os
 import socket
-import time
 import platform
 import subprocess
-from scapy.all import sniff, IP, TCP, UDP, ARP, Ether, srp
+from scapy.all import sniff, IP, ARP, Ether, srp
+import dns.resolver
 from monitor import start_monitoring
 
-import subprocess
-
-
-
-
-
-
-# ============================== STEP 1: Physical Connectivity ==============================
+# ========== STEP 1: Physical Connectivity ==========
 
 def list_interfaces():
-    print("\n🔌 Step 1: Physical Connectivity - Available Network Interfaces")
     if platform.system() == "Windows":
         result = subprocess.getoutput("netsh interface show interface")
         print(result)
-    else:
-        print("⚠ Interface listing is only supported on Windows for now.")
 
 def follow_up_questions(interface):
-    print("\n📋 Additional Physical Checks:")
     interface_lower = interface.lower()
     if "ethernet" in interface_lower:
-        input("🧩 Is the Ethernet cable plugged in properly? (Press Enter to continue) ")
-        input("💡 Are the LEDs blinking on the port or router? (Press Enter to continue) ")
+        input("🧩 Ethernet cable plugged in? ")
+        input("💡 Are the port LEDs blinking? ")
     if "wi-fi" in interface_lower or "wifi" in interface_lower:
-        input("📶 Is Wi-Fi turned ON and connected to the correct network? (Press Enter to continue) ")
-    input("✈️ Is Airplane mode OFF on your device? (Press Enter to continue) ")
+        input("📶 Is Wi-Fi connected to correct network? ")
+    input("✈️ Is Airplane mode OFF? ")
 
 def check_cable_or_wifi_gui(target_interface):
     result_text = ""
     guidance = []
-    is_connected = False
-
     if platform.system() == "Windows":
         result = subprocess.getoutput("netsh interface show interface")
         for line in result.splitlines():
             if target_interface.lower() in line.lower():
                 if "Connected" in line:
                     result_text = f"✅ {target_interface} is connected."
-                    is_connected = True
                 else:
                     result_text = f"⚠️ {target_interface} is not connected."
                     if "ethernet" in target_interface.lower():
-                        guidance = [
-                            "🧩 Is the Ethernet cable plugged in properly?",
-                            "💡 Are the LEDs blinking on the port or router?"
-                        ]
-                    elif "wi-fi" in target_interface.lower() or "wifi" in target_interface.lower():
-                        guidance = [
-                            "📶 Is Wi-Fi turned ON and connected to the correct network?",
-                            "✈️ Is Airplane mode OFF on your device?"
-                        ]
+                        guidance = ["🧩 Check cable", "💡 Check port LEDs"]
+                    elif "wi-fi" in target_interface.lower():
+                        guidance = ["📶 Check Wi-Fi connection", "✈️ Check Airplane mode"]
                 break
     return result_text, guidance
 
-
-
-
-
-# ============================== STEP 2: IP Address & DHCP (GUI Version) ==============================
+# ========== STEP 2: IP & DHCP Diagnostics ==========
 
 def check_ip_and_dhcp_info(selected_interface):
     if platform.system() != "Windows":
-        return "⚠️ IP/DHCP checks are only supported on Windows."
+        return "⚠️ IP/DHCP checks are Windows-only."
 
     output = subprocess.getoutput("ipconfig /all")
     lines = output.splitlines()
@@ -92,10 +66,10 @@ def check_ip_and_dhcp_info(selected_interface):
             continue
         if "DHCP Enabled" in line:
             dhcp_enabled = "Yes" in line
-        if "IPv4 Address" in line or "IPv4-Adresse" in line:
-            ip_address = line.split(":")[-1].strip().split("(")[0].strip()
+        if "IPv4 Address" in line:
+            ip_address = line.split(":")[-1].split("(")[0].strip()
             ip_valid = not ip_address.startswith("169.254")
-        if "Default Gateway" in line and line.split(":")[-1].strip():
+        if "Default Gateway" in line and ":" in line:
             gateway = line.split(":")[-1].strip()
         if "DNS Servers" in line:
             dns_servers.append(line.split(":")[-1].strip())
@@ -107,139 +81,133 @@ def check_ip_and_dhcp_info(selected_interface):
             break
 
     if not ip_address:
-        return f"⚠️ Could not determine IP address for {selected_interface}"
+        return f"⚠️ Could not determine IP for {selected_interface}"
 
     if dhcp_enabled:
-        if ip_valid:
-            messages.append(f"✅ Valid IP assigned via DHCP on {selected_interface}: {ip_address}")
-        else:
-            messages.append(f"⚠️ DHCP is enabled but IP is invalid: {ip_address}")
-            messages.append("💡 Suggested Steps:")
-            messages.append("   - Check your IP settings")
-            messages.append("   - Reset adapter or restart PC")
-            messages.append("   - Try 'ipconfig /release' then 'ipconfig /renew'")
+        messages.append(f"✅ Valid DHCP IP: {ip_address}" if ip_valid else f"⚠️ Invalid DHCP IP: {ip_address}")
     else:
-        messages.append(f"⚠️ DHCP is disabled on {selected_interface}")
-        messages.append(f"ℹ️ Static IP assigned: {ip_address}")
+        messages.append(f"⚠️ DHCP disabled. Static IP: {ip_address}")
         if not gateway:
-            messages.append("❌ Default gateway is missing.")
+            messages.append("❌ No default gateway.")
         if not dns_servers:
-            messages.append("❌ No DNS servers configured.")
-        messages.append("💡 Please reconfigure IP or enable DHCP in adapter settings.")
+            messages.append("❌ No DNS servers.")
 
     return "\n".join(messages)
 
-
-
-
-
-
-
-# ============================== STEP 3: Ping Router ==============================
-
-
+# ========== STEP 3: Router Ping ==========
 
 def ping_router(gateway="192.168.1.1"):
     output = os.popen(f"ping -n 4 {gateway}" if os.name == "nt" else f"ping -c 4 {gateway}").read()
     success = "TTL=" in output or "bytes from" in output
     return output.strip(), success
 
-
-
-
-
-
-
-# ============================== STEP 4 & 5: DNS + Internet ==============================
-
-
-import dns.resolver
+# ========== STEP 4/5: DNS and Internet ==========
 
 def check_dns_resolution():
     try:
         dns.resolver.resolve("google.com")
         return True, None
     except dns.resolver.NoNameservers:
-        return False, "No DNS servers available."
+        return False, "No DNS servers."
     except dns.resolver.NXDOMAIN:
-        return False, "Domain does not exist."
+        return False, "Domain not found."
     except dns.resolver.Timeout:
-        return False, "DNS query timed out."
+        return False, "DNS timeout."
     except Exception:
-        return False, "Unknown DNS resolution error."
-
-
+        return False, "Unknown DNS error."
 
 def ping_external():
-    print("\n🌎 Step 5: Internet Access Check...")
     output = os.popen(f"ping -n 2 8.8.8.8" if os.name == "nt" else f"ping -c 2 8.8.8.8").read()
-    print(output)
-    if "TTL=" in output or "bytes from" in output:
-        print("✅ Internet is accessible.")
-        return True
-    else:
-        input("❌ Cannot reach the internet.\n"
-              "💡 Check your connection or contact ISP.\n"
-              "Press Enter to continue.")
-        return False
+    return "TTL=" in output or "bytes from" in output
 
-
-
-
-
-# ============================== STEP 6: Speed Test =============================
+# ========== STEP 6: Speed Test ==========
 
 def speed_test():
-    print("\n🚀 Step 6: Speed Test...")
     try:
         import speedtest
-
         st = speedtest.Speedtest()
         st.get_best_server()
         down = st.download() / 1_000_000
         up = st.upload() / 1_000_000
-        print(f"\n⬇ Download Speed: {down:.2f} Mbps")
-        print(f"⬆ Upload Speed: {up:.2f} Mbps")
-        if down < 2: input("⚠️ Very slow download. Try limiting devices.\nPress Enter to continue.")
-        elif down < 5: input("⚠️ Slow download speed.\nPress Enter to continue.")
-        else: print("✅ Download speed is good.")
-        if up < 0.5: input("⚠️ Very slow upload.\nPress Enter to continue.")
-        elif up < 2: input("⚠️ Slow upload speed.\nPress Enter to continue.")
-        else: print("✅ Upload speed is good.")
+        print(f"⬇ {down:.2f} Mbps | ⬆ {up:.2f} Mbps")
     except Exception as e:
-        print(f"❌ Speed test failed: {e}")
-        input("Try again later. Press Enter to continue.")
+        print("❌ Speed test failed:", e)
 
-
-
-
-
-
-# ============================== STEP 7: Connected Devices ==============================
+# ========== STEP 7: Connected Devices ==========
 
 TRUSTED_MACS_FILE = "trusted_macs.txt"
-
-def get_connected_devices_with_ip(ip_range="192.168.1.1/24"):
-    arp = ARP(pdst=ip_range)
-    ether = Ether(dst="ff:ff:ff:ff:ff:ff")
-    packet = ether / arp
-    result = srp(packet, timeout=2, verbose=0)[0]
-    return [(rcv.hwsrc.lower(), rcv.psrc) for snd, rcv in result]
 
 def get_default_gateway():
     if platform.system() == "Windows":
         output = subprocess.getoutput("ipconfig")
+        capture = False
         for line in output.splitlines():
-            if "Default Gateway" in line and ":" in line:
+            line = line.strip()
+            if "Default Gateway" in line:
                 parts = line.split(":")
-                if len(parts) > 1 and parts[-1].strip():
-                    return parts[-1].strip()
-    return "192.168.1.1"
+                if len(parts) > 1:
+                    ip = parts[-1].strip()
+                    if ip:
+                        return ip
+    return None  # Avoid fallback
+
+def get_connected_devices_with_ip(ip_range=None):
+    if ip_range is None:
+        gateway = get_default_gateway()
+        if gateway:
+            ip_prefix = ".".join(gateway.split(".")[:3])
+            ip_range = f"{ip_prefix}.0/24"
+        else:
+            print("❌ Could not detect gateway. Please connect to a network.")
+            return []
+
+    arp = ARP(pdst=ip_range)
+    ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+    packet = ether / arp
+    result = srp(packet, timeout=2, verbose=0)[0]
+
+    devices = []
+    ignore_mac_prefixes = {"01:00:5e", "33:33", "ff:ff", "00:00:00"}
+    for snd, rcv in result:
+        mac = rcv.hwsrc.lower()
+        if any(mac.startswith(pfx) for pfx in ignore_mac_prefixes):
+            continue
+        devices.append((mac.upper(), rcv.psrc))
+
+    if len(devices) < 2:
+        print("⚠️ ARP returned few devices, sniffing instead...")
+        passive = passive_sniff_devices()
+        for mac, ip in passive:
+            if (mac, ip) not in devices:
+                devices.append((mac, ip))
+
+    try:
+        with open("passive_sniff.log", "w") as f:
+            for mac, ip in devices:
+                f.write(f"{mac},{ip}\n")
+    except Exception as e:
+        print("Error writing sniff log:", e)
+
+    return devices
+
+def passive_sniff_devices(duration=10):
+    print(f"🔍 Passive sniffing {duration}s...")
+    seen = set()
+
+    def handle(pkt):
+        if Ether in pkt and IP in pkt:
+            mac = pkt[Ether].src
+            ip = pkt[IP].src
+            if not any(mac.lower().startswith(p) for p in ("01:00:5e", "33:33", "ff:ff", "00:00")):
+                seen.add((mac.upper(), ip))
+
+    sniff(filter="ip", prn=handle, timeout=duration, store=0)
+    return list(seen)
 
 def load_trusted_macs():
     if os.path.exists(TRUSTED_MACS_FILE):
         with open(TRUSTED_MACS_FILE, "r") as f:
-            return [line.strip().lower() for line in f.readlines()]
+            return [line.strip().lower() for line in f]
     return []
 
 def save_trusted_macs(new_macs):
@@ -249,114 +217,21 @@ def save_trusted_macs(new_macs):
         for mac in updated:
             f.write(mac + "\n")
 
-def check_unauthorized_devices():
-    print("\n🔒 Step 7: Connected Devices Scan...")
-    gateway = get_default_gateway()
-    ip_prefix = ".".join(gateway.split(".")[:3]) + ".1/24"
-    devices = get_connected_devices_with_ip(ip_prefix)
-
-    if not devices:
-        print("⚠️ No devices detected.")
-        return
-
-    trusted_macs = load_trusted_macs()
-
-    # Show all connected devices first
-    print("📋 All Connected Devices:")
-    for i, (mac, ip) in enumerate(devices, 1):
-        label = " (Router)" if ip == gateway else ""
-        print(f"{i}. MAC: {mac} | IP: {ip}{label}")
-
-    # Filter out already trusted MACs
-    untrusted_devices = [(i+1, mac, ip) for i, (mac, ip) in enumerate(devices) if mac not in trusted_macs]
-
-    if not untrusted_devices:
-        print("✅ No new untrusted devices detected.")
-    else:
-        print("\n🆕 New Untrusted Devices:")
-        for index, mac, ip in untrusted_devices:
-            print(f"{index}. MAC: {mac} | IP: {ip}")
-
-        input_str = input("\n💬 Select which of the above are trusted (e.g., 1 2 ): ").strip()
-        selected = [int(i) for i in input_str.split() if i.isdigit()]
-        newly_trusted = [devices[i - 1][0] for i in selected if 0 < i <= len(devices)]
-
-        if newly_trusted:
-            save_trusted_macs(newly_trusted)
-            print("✅ Trusted MACs updated.")
-
-    # Reload final list and show remaining unauthorized
-    trusted_macs = load_trusted_macs()
-    unauthorized = [(mac, ip) for (mac, ip) in devices if mac not in trusted_macs]
-
-    if unauthorized:
-        print("\n🚨 Unauthorized Devices Detected:")
-        for mac, ip in unauthorized:
-            label = " (Router)" if ip == gateway else ""
-            print(f" - MAC: {mac} | IP: {ip}{label}")
-        input("⚠️ Consider changing your Wi-Fi password.\nPress Enter to continue.")
-    else:
-        print("✅ No unauthorized devices found.")
-
-
-
-
-
-
-
-
-# ============================== STEP 8: TRAFFIC MONITORING ==============================
-
-
+# ========== STEP 8: Monitoring ==========
 
 def run_traffic_monitor(interface):
-    print("\n📊 Step 8: New Connections Monitoring...")
     start_monitoring(interface)
 
-
-
-
-
-
-
-
-# ==================== STEP 9: First-Time Connection Log ====================
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ============================== MAIN ==============================
+# ========== MAIN ==========
 
 def run_diagnostics():
-    input("\n🔘 Press Enter to begin full Network Troubleshooter...\n")
+    input("🔘 Press Enter to begin...\n")
     list_interfaces()
-    interface = input("\n💬 Enter the interface name to troubleshoot (e.g., Ethernet, Wi-Fi): ").strip()
-    if not check_cable_or_wifi(interface): return
-    if not check_ip_and_dhcp(interface): return
+    interface = input("💬 Interface to troubleshoot: ").strip()
+    if not check_cable_or_wifi_gui(interface): return
+    if not check_ip_and_dhcp_info(interface): return
     if not ping_router(): return
-    if not dns_check(): return
+    if not check_dns_resolution(): return
     if not ping_external(): return
-    
     speed_test()
-    
-    check_unauthorized_devices()
     run_traffic_monitor(interface)
-
-    print("\n✅ Network troubleshooting complete.")
-
-if __name__ == "__main__":
-    run_diagnostics()
-

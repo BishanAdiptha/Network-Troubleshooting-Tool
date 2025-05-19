@@ -1,46 +1,12 @@
 import platform
 import socket
-import threading
 from PySide6.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QScrollArea, QFrame
+    QWidget, QLabel, QVBoxLayout, QTextEdit, QPushButton,
+    QHBoxLayout, QScrollArea, QFrame
 )
 from PySide6.QtCore import Qt, QTimer
-from main import get_connected_devices_with_ip, load_trusted_macs, save_trusted_macs
-
-# mDNS Query
-def mdns_lookup(ip):
-    try:
-        mdns_query = b"\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07_google\x04_udp\x05local\x00\x00\x01\x00\x01"
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(1)
-        sock.sendto(mdns_query, (ip, 5353))
-        data, _ = sock.recvfrom(1024)
-        if data:
-            return "MDNS Device"
-    except:
-        pass
-    return None
-
-# NetBIOS Name Service Lookup
-from scapy.all import sr1, IP, UDP, NBNSQueryRequest
-
-def netbios_lookup(ip):
-    try:
-        pkt = IP(dst=ip)/UDP(dport=137)/NBNSQueryRequest()
-        resp = sr1(pkt, timeout=2, verbose=0)
-        if resp and resp.haslayer(NBNSQueryRequest):
-            return resp.NBNSQueryRequest.NAME.decode().strip()
-    except:
-        pass
-    return None
-
-# Reverse DNS
-def reverse_dns_lookup(ip):
-    try:
-        name, _, _ = socket.gethostbyaddr(ip)
-        return name
-    except:
-        return None
+from main import load_trusted_macs, save_trusted_macs
+from router_devices_fetcher import get_connected_devices  # NEW IMPORT
 
 class Step07Tab(QWidget):
     def __init__(self, tabs, selected_interface):
@@ -124,7 +90,7 @@ class Step07Tab(QWidget):
     def show_loading_message(self):
         self.scroll_layout.setSpacing(10)
         self.clear_device_list()
-        loading = QLabel("\u23f3 Scanning devices... Please wait...")
+        loading = QLabel("⏳ Scanning devices... Please wait...")
         loading.setStyleSheet("font-size:16px; color:#666;")
         loading.setAlignment(Qt.AlignCenter)
         self.scroll_layout.addWidget(loading)
@@ -132,21 +98,20 @@ class Step07Tab(QWidget):
     def run_scan(self):
         self.clear_device_list()
         trusted_macs = load_trusted_macs()
-        devices = get_connected_devices_with_ip()
-
         unauthorized_found = False
 
-        for mac, ip in devices:
-            hostname = mdns_lookup(ip) or netbios_lookup(ip) or reverse_dns_lookup(ip)
-            if not hostname:
-                hostname = "Unknown"
+        devices = get_connected_devices()
+        if not devices:
+            self.status_box.setPlainText("❌ Could not fetch any devices from router.")
+            return
 
+        for name, ip, mac in devices:
             device_frame = QFrame()
             device_frame.setStyleSheet("background: #f9fafb; border: 1px solid #ccc; border-radius: 10px; padding: 10px;")
             device_layout = QHBoxLayout()
             device_frame.setLayout(device_layout)
 
-            hostname_label = QLabel(f"<b>{hostname}</b>")
+            hostname_label = QLabel(f"<b>{name}</b>")
             hostname_label.setStyleSheet("font-size: 14px;")
             ip_label = QLabel(ip)
             mac_label = QLabel(mac)
@@ -158,7 +123,7 @@ class Step07Tab(QWidget):
             device_layout.addWidget(ip_label)
             device_layout.addWidget(mac_label)
 
-            if mac in trusted_macs:
+            if mac.lower() in trusted_macs:
                 status_label = QLabel("<span style='color:green;'>Known</span>")
                 status_label.setStyleSheet("padding:5px;")
                 device_layout.addWidget(status_label)
@@ -194,7 +159,6 @@ class Step07Tab(QWidget):
                         background-color: #ff4d4d;
                     }
                 """)
-
                 untrust_btn.clicked.connect(lambda _, m=mac: self.untrust_mac(m))
 
                 device_layout.addWidget(trust_btn)
@@ -215,8 +179,8 @@ class Step07Tab(QWidget):
 
     def trust_mac(self, mac):
         trusted_macs = load_trusted_macs()
-        if mac not in trusted_macs:
-            trusted_macs.append(mac)
+        if mac.lower() not in trusted_macs:
+            trusted_macs.append(mac.lower())
             save_trusted_macs(trusted_macs)
         self.show_loading_message()
         QTimer.singleShot(300, self.run_scan)

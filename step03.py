@@ -1,7 +1,7 @@
 # step03.py
 import platform
 import subprocess
-import os
+import re
 from PySide6.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
 )
@@ -78,7 +78,6 @@ class Step03Tab(QWidget):
         layout.addLayout(nav_layout)
         self.setLayout(layout)
 
-        # ⏳ Immediate "Please wait..." message
         self.output_box.setPlainText("🌐 Detecting default gateway and checking router reachability...\n\nPlease wait...")
         QTimer.singleShot(500, self.check_router)
 
@@ -87,8 +86,7 @@ class Step03Tab(QWidget):
             self.output_box.setText("⚠️ This tool only supports Windows.")
             return
 
-        output = subprocess.getoutput("ipconfig /all")
-        default_gateway = self.extract_default_gateway(output)
+        default_gateway = self.extract_default_gateway()
 
         if not default_gateway:
             self.output_box.setText("❌ No default gateway detected. Cannot perform router ping check.")
@@ -131,13 +129,14 @@ class Step03Tab(QWidget):
         else:
             self.timer.stop()
 
-    def extract_default_gateway(self, output):
-        lines = output.splitlines()
-        for line in lines:
-            if "Default Gateway" in line and ":" in line:
-                parts = line.split(":")
-                if len(parts) > 1 and parts[-1].strip():
-                    return parts[-1].strip()
+    def extract_default_gateway(self):
+        try:
+            output = subprocess.getoutput("netsh interface ip show config")
+            matches = re.findall(r"Default Gateway:\s+(\d+\.\d+\.\d+\.\d+)", output)
+            if matches:
+                return matches[0]
+        except:
+            pass
         return ""
 
     def go_back_to_step2(self):

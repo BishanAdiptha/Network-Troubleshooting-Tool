@@ -1,0 +1,105 @@
+/* === GLOBAL === */
+QWidget {
+    background-color: #f9fafb;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    color: #111;
+}
+
+/* === TABS === */
+QTabBar::tab {
+    background: #f0f0f0;
+    padding: 10px 20px;
+    margin-right: 5px;
+    border-radius: 10px;
+    font-weight: bold;
+}
+
+QTabBar::tab:selected {
+    background-color: #3b82f6;
+    color: white;
+}
+
+/* === TITLE === */
+QLabel {
+    font-size: 16px;
+}
+
+/* === BUTTONS === */
+QPushButton {
+    padding: 14px 22px;
+    border-radius: 16px;
+    border: 2px solid #ccc;
+    background-color: white;
+    font-weight: bold;
+    margin: 5px;
+}
+
+QPushButton:hover {
+    background-color: #eeeeee;
+}
+
+QPushButton[status="connected"] {
+    color: #059669;
+    border: 2px solid #059669;
+}
+
+QPushButton[status="disconnected"] {
+    color: #dc2626;
+    border: 2px solid #dc2626;
+}
+
+/* === STATUS BOX === */
+QTextEdit {
+    background-color: #111827;
+    color: white;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 15px;
+}
+
+/* === ARROW BUTTON === */
+QPushButton#nextButton {
+    background-color: #28a6f0;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+#nextButton:hover {
+    background-color: #1c90d4;
+}
+
+
+
+QScrollBar:vertical {
+    border: none;
+    background: #1e1e2f;
+    width: 10px;
+    margin: 0px 0px 0px 0px;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical {
+    background: #5c5c8a;
+    min-height: 20px;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #7777aa;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: none;
+}

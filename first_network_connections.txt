@@ -1,0 +1,140 @@
+[19/05/2025 01:01 PM] v10.events.data.microsoft.com - United Kingdom
+[19/05/2025 01:01 PM] default.exp-tas.com - United States
+[19/05/2025 01:02 PM] www.msn.com - United States
+[19/05/2025 01:03 PM] ntp.msn.com - United States
+[19/05/2025 01:04 PM] prod.rewardsplatform.microsoft.com - Hong Kong
+[19/05/2025 01:04 PM] sb.scorecardresearch.com - India
+[19/05/2025 01:04 PM] c.msn.com - South Korea
+[19/05/2025 01:04 PM] browser.events.data.msn.com - Ireland
+[19/05/2025 01:04 PM] srtb.msn.com - United States
+[19/05/2025 01:04 PM] login.live.com - Singapore
+[19/05/2025 01:04 PM] aks-prod-southeastasia.access-point.cloudmessaging.edge.microsoft.com - Singapore
+[19/05/2025 01:04 PM] r.msftstatic.com - United States
+[19/05/2025 01:04 PM] filters.adtidy.org - Sri Lanka
+[19/05/2025 01:04 PM] o1271931.ingest.sentry.io - United States
+[19/05/2025 01:04 PM] functional.events.data.microsoft.com - United States
+[19/05/2025 01:04 PM] ab.reasonlabsapi.com - India
+[19/05/2025 01:04 PM] pac.rlpaservices.com - India
+[19/05/2025 01:05 PM] web.utorrent.com - India
+[19/05/2025 01:05 PM] utweb.rainberrytv.com - India
+[19/05/2025 01:05 PM] 192.168.8.1:52881 - Unknown
+[19/05/2025 01:05 PM] ledger.bt.co - United States
+[19/05/2025 01:05 PM] update.utorrent.com - Iceland
+[19/05/2025 01:05 PM] airdrop.bt.co - United States
+[19/05/2025 01:05 PM] i-4103.b-5828.utw.bench.utorrent.com - United States
+[19/05/2025 01:05 PM] i-5600.b-2789.helper.bench.utorrent.com - United States
+[19/05/2025 01:05 PM] ip-api.com - United States
+[19/05/2025 01:05 PM] client-config-service.btor.co - India
+[19/05/2025 01:05 PM] fd.api.iris.microsoft.com - Hong Kong
+[19/05/2025 01:05 PM] wdcp.microsoft.com - Singapore
+[19/05/2025 01:06 PM] browser.pipe.aria.microsoft.com - United States
+[19/05/2025 01:06 PM] fp.msedge.net - United States
+[19/05/2025 01:08 PM] api.github.com - Singapore
+[19/05/2025 01:08 PM] alive.github.com - United States
+[19/05/2025 01:08 PM] central.github.com - United States
+[19/05/2025 01:08 PM] oneocsp.microsoft.com - United States
+[19/05/2025 01:08 PM] watson.events.data.microsoft.com - United States
+[19/05/2025 02:20 PM] media-fra3-1.cdn.whatsapp.net - Germany
+[19/05/2025 02:21 PM] browser-intake-datadoghq.com - United States
+[19/05/2025 02:21 PM] chrome.cloudflare-dns.com - Unknown
+[19/05/2025 02:21 PM] assets.msn.com - Unknown
+[19/05/2025 02:21 PM] edge.microsoft.com - United States
+[19/05/2025 02:21 PM] xpaywalletcdn-prod.azureedge.net - United States
+[19/05/2025 02:21 PM] substrate.office.com - Singapore
+[19/05/2025 02:21 PM] www.bing.com - Unknown
+[19/05/2025 02:21 PM] fbcdn.net - Unknown
+[19/05/2025 02:21 PM] fbsbx.com - Unknown
+[19/05/2025 02:21 PM] connect.facebook.net - Unknown
+[19/05/2025 02:22 PM] us.telemetry.zoom.us - Unknown
+[19/05/2025 02:22 PM] update.googleapis.com - Unknown
+[19/05/2025 02:22 PM] main.vscode-cdn.net - Unknown
+[19/05/2025 02:22 PM] api.msn.com - United States
+[19/05/2025 02:22 PM] c.bing.com - United States
+[19/05/2025 02:22 PM] exo.nel.measure.office.net - Singapore
+[19/05/2025 02:22 PM] login.microsoftonline.com - Unknown
+[19/05/2025 02:22 PM] ocws.officeapps.live.com - Unknown
+[19/05/2025 02:22 PM] edge-consumer-static.azureedge.net - United States
+[19/05/2025 02:22 PM] t-ring-fallback-s2.msedge.net - Australia
+[19/05/2025 02:22 PM] t-ring-fallback.msedge.net - Unknown
+[19/05/2025 02:22 PM] spo-ring-fallback.msedge.net - Unknown
+[19/05/2025 02:22 PM] ln-ring.msedge.net - Unknown
+[19/05/2025 02:22 PM] wac-ring.msedge.net - Unknown
+[19/05/2025 02:22 PM] aad.cs.dds.microsoft.com - Unknown
+[19/05/2025 02:22 PM] p-ring.msedge.net - United States
+[19/05/2025 02:22 PM] portquiz.net:8080 - France
+[19/05/2025 02:23 PM] static.edge.microsoftapp.net - United States
+[19/05/2025 02:23 PM] go.microsoft.com - Singapore
+[19/05/2025 02:23 PM] ctldl.windowsupdate.com - Unknown
+[19/05/2025 02:51 PM] us04web.zoom.us - United States
+[19/05/2025 02:51 PM] contactservice.zoom.us - Unknown
+[19/05/2025 02:51 PM] us04file.zoom.us - Unknown
+[19/05/2025 02:51 PM] kidsmanagement-pa.googleapis.com - Unknown
+[19/05/2025 02:51 PM] captive.onzoom.com - United States
+[19/05/2025 02:51 PM] us04xmppapi.zoom.us - Unknown
+[19/05/2025 02:51 PM] us04ark.zoom.us - Unknown
+[19/05/2025 02:51 PM] us04asyncim.zoom.us - Unknown
+[19/05/2025 02:51 PM] clientservices.googleapis.com - Singapore
+[19/05/2025 02:51 PM] safebrowsing.google.com - Singapore
+[19/05/2025 02:51 PM] optimizationguide-pa.googleapis.com - Singapore
+[19/05/2025 02:51 PM] napps.zoom.us - Unknown
+[19/05/2025 02:51 PM] www.googleapis.com - Singapore
+[19/05/2025 02:51 PM] accounts.google.com - Singapore
+[19/05/2025 02:51 PM] us04nws.zoom.us - United States
+[19/05/2025 02:51 PM] docs.zoom.us - United States
+[19/05/2025 02:51 PM] us04zpns.zoom.us - United States
+[19/05/2025 02:51 PM] clients4.google.com - Singapore
+[19/05/2025 02:51 PM] us04www3.zoom.us - United States
+[19/05/2025 02:51 PM] mpapis.zoom.us - United States
+[19/05/2025 02:51 PM] us04xmpp1.zoom.us - United States
+[19/05/2025 02:51 PM] searchapp.zoom.us - United States
+[19/05/2025 02:52 PM] ecs.office.com - Unknown
+[19/05/2025 02:54 PM] media.fcmb1-2.fna.whatsapp.net - Sri Lanka
+[19/05/2025 02:54 PM] g.whatsapp.net - Unknown
+[19/05/2025 02:54 PM] media.fcmb2-2.fna.whatsapp.net - Sri Lanka
+[19/05/2025 02:54 PM] media-sin11-1.cdn.whatsapp.net - Singapore
+[19/05/2025 02:54 PM] mmg.whatsapp.net - Singapore
+[19/05/2025 02:54 PM] mobile.plymouth.ac.uk - Netherlands
+[19/05/2025 02:54 PM] www.google.com - India
+[19/05/2025 02:54 PM] encrypted-tbn0.gstatic.com - India
+[19/05/2025 02:54 PM] ogads-pa.clients6.google.com - India
+[19/05/2025 02:55 PM] play.google.com - Singapore
+[19/05/2025 02:55 PM] dark.netflix.io - India
+[19/05/2025 02:55 PM] www.googletagmanager.com - India
+[19/05/2025 02:55 PM] www.google-analytics.com - United States
+[19/05/2025 02:55 PM] securetoken.googleapis.com - India
+[19/05/2025 02:55 PM] _kerberos._tcp.dc._msdcs.gmail.com - Unknown
+[19/05/2025 02:55 PM] spo-ring.msedge.net - Unknown
+[19/05/2025 02:55 PM] t-ring.msedge.net - France
+[19/05/2025 02:55 PM] fp-afd.azurefd.net - Unknown
+[19/05/2025 02:55 PM] t-ring-s.msedge.net - Unknown
+[19/05/2025 02:55 PM] t-ring-fdv2.msedge.net - Unknown
+[19/05/2025 02:55 PM] tring.clo.footprintdns.com - Unknown
+[19/05/2025 02:55 PM] neverssl.com - United States
+[19/05/2025 02:55 PM] sereneuniquemajesticrainbow.neverssl.com - United States
+[19/05/2025 02:55 PM] clients2.google.com - India
+[19/05/2025 02:56 PM] portquiz.net - Unknown
+[19/05/2025 02:56 PM] nic.xyz - Unknown
+[19/05/2025 02:57 PM] yandex.ru - Russia
+[19/05/2025 02:57 PM] beacons.gcp.gvt2.com - India
+[19/05/2025 02:57 PM] dzen.ru - Russia
+[19/05/2025 02:57 PM] sso.passport.yandex.ru - Russia
+[19/05/2025 02:57 PM] sso.dzen.ru - Russia
+[19/05/2025 02:57 PM] login.vk.com - Russia
+[19/05/2025 02:57 PM] suggest.sso.dzen.ru - Russia
+[19/05/2025 02:57 PM] suggest.dzen.ru - Russia
+[19/05/2025 02:57 PM] static.dzeninfra.ru - Russia
+[19/05/2025 02:57 PM] fonts.googleapis.com - India
+[19/05/2025 02:57 PM] mtalk.google.com - Singapore
+[19/05/2025 02:57 PM] android.clients.google.com - Singapore
+[19/05/2025 02:57 PM] mc.yandex.ru - Russia
+[19/05/2025 02:57 PM] avatars.dzeninfra.ru - Russia
+[19/05/2025 02:57 PM] top-fwz1.mail.ru - Russia
+[19/05/2025 02:57 PM] vk.ru - Russia
+[19/05/2025 02:57 PM] ad.mail.ru - Russia
+[19/05/2025 02:57 PM] clck.dzen.ru - Russia
+[19/05/2025 02:57 PM] yastatic.net - Russia
+[19/05/2025 02:57 PM] id.vk.com - Russia
+[19/05/2025 02:57 PM] w38d9f72x9z4qv5cx84qv39v8d32q9xn49c8.testdomain.com - Unknown
+[19/05/2025 02:57 PM] static-mon.yandex.net - Russia
+[19/05/2025 02:58 PM] example.com - Unknown
+[19/05/2025 02:58 PM] v20.events.data.microsoft.com - Unknown
