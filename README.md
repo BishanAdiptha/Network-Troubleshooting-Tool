@@ -1,3 +1,4 @@
+```
 To install and begin using the Network Troubleshooting Tool with Anomaly Detection, follow these simple steps:
 
   System Requirements:
@@ -28,3 +29,4 @@ To install and begin using the Network Troubleshooting Tool with Anomaly Detecti
 
   Saving Logs (Optional):
     - Click the ☰ menu (top-right) and choose "Save Anomaly Logs" or "Save Network Connections" for offline review.
+```
